@@ -22,7 +22,7 @@ test("Phase 17–18: PPDB enrollment and tenant-isolated files", async () => {
   const url = new URL(original.url!);
   url.searchParams.set("options", `-c search_path=${schema},public`);
   process.env.DATABASE_URL = url.toString();
-  const storage = await mkdtemp(join(tmpdir(), "schoolapp-admission-"));
+  const storage = await mkdtemp(join(tmpdir(), "langkahsiswa-admission-"));
   process.env.STORAGE_PATH = storage;
   const db = new Database();
   let app: Awaited<ReturnType<typeof createApp>> | undefined;

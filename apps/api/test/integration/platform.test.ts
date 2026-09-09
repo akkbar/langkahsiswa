@@ -10,7 +10,7 @@ import { createTenant, initializeRoles } from "../../src/auth";
 import { createApp } from "../../src/app";
 test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
   const base = new Database();
-  const schema = `schoolapp_test_${randomUUID().replaceAll("-", "")}`;
+  const schema = `langkahsiswa_test_${randomUUID().replaceAll("-", "")}`;
   await base.query(`CREATE SCHEMA ${schema}`);
   const previous = process.env.DATABASE_URL;
   const url = new URL(previous!);
@@ -200,6 +200,54 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         403,
       );
     });
+    await t.test(
+      "one foundation account can create and switch between school sites",
+      async () => {
+        const initial = await request("sites", "GET", undefined, token);
+        assert.equal(initial.total, 1);
+        assert.equal(initial.data[0].current, true);
+        const branch = await post("sites", {
+          name: "Kampus Timur",
+          slug: "school-a-east",
+          school_name: "Sekolah A Kampus Timur",
+          address: "Jalan Timur 1",
+        });
+        const available = await request("sites", "GET", undefined, token);
+        assert.equal(available.total, 2);
+        assert.equal(
+          available.data.find((site: any) => site.id === branch.id).current,
+          false,
+        );
+        const switched = await request(
+          `sites/${branch.id}/switch`,
+          "POST",
+          {},
+          token,
+          201,
+        );
+        assert.equal(switched.user.tenant_id, branch.id);
+        assert.equal(switched.user.account_id, auth.user.account_id);
+        assert.equal(switched.user.organization_id, auth.user.organization_id);
+        const branchStudents = await request(
+          "students",
+          "GET",
+          undefined,
+          switched.access_token,
+        );
+        assert.equal(branchStudents.total, 0);
+        const branchSites = await request(
+          "sites",
+          "GET",
+          undefined,
+          switched.access_token,
+        );
+        assert.equal(branchSites.total, 2);
+        assert.equal(
+          branchSites.data.find((site: any) => site.id === branch.id).current,
+          true,
+        );
+      },
+    );
     await t.test(
       "school master CRUD and linked school/year validations",
       async () => {

@@ -56,7 +56,7 @@ edit offline atau sinkronisasi latar belakang data sekolah.
 ## Login Google di perangkat
 
 Konfigurasi backend mengikuti [GOOGLE_LOGIN.md](GOOGLE_LOGIN.md). Android
-application ID bawaan `id.schoolapp.schoolapp_mobile`; daftarkan package dan
+application ID bawaan `id.langkahsiswa.langkahsiswa_mobile`; daftarkan package dan
 fingerprint SHA sertifikat debug/release pada Google Cloud/Firebase. Google
 Sign-In memakai web client ID backend sebagai `serverClientId`.
 

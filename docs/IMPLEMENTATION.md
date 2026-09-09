@@ -1,4 +1,4 @@
-# SchoolApp V1.0 — Phase 0–22 dan 24
+# LangkahSiswa V1.0 — Phase 0–22 dan 24
 
 Implementasi berupa monorepo npm: API NestJS/TypeScript, admin React/Vite,
 PostgreSQL, Redis, dan MinIO, dengan aplikasi Flutter pada `apps/mobile`.
@@ -59,8 +59,8 @@ npm run dev
 - Website publik: http://localhost:5174/{kode-sekolah}/{slug}
 - API health: http://localhost:3000/health
 - MinIO console: http://localhost:9001 (akun dev di `.env`)
-- Login demo: kode sekolah **demo**, email **admin@demo.schoolapp.id**,
-  kata sandi **SchoolApp!2026**. Seed membaca `SEED_ADMIN_EMAIL/PASSWORD`.
+- Login demo: kode sekolah **demo**, email **admin@demo.langkahsiswa.id**,
+  kata sandi **LangkahSiswa!2026**. Seed membaca `SEED_ADMIN_EMAIL/PASSWORD`.
 
 Seed idempoten: membuat sekolah, tahun ajaran 2026/2027, semester 1,
 kelas 7A, guru, tiga siswa, wali, jadwal, serta empat kategori Matematika
@@ -206,7 +206,7 @@ Contoh login PowerShell:
 ```powershell
 $session = Invoke-RestMethod http://localhost:3000/api/v1/auth/login `
   -Method Post -ContentType application/json `
-  -Body '{"tenant_slug":"demo","email":"admin@demo.schoolapp.id","password":"SchoolApp!2026"}'
+  -Body '{"tenant_slug":"demo","email":"admin@demo.langkahsiswa.id","password":"LangkahSiswa!2026"}'
 $headers = @{ Authorization = "Bearer $($session.access_token)" }
 Invoke-RestMethod http://localhost:3000/api/v1/students -Headers $headers
 ```

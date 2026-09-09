@@ -1,5 +1,5 @@
 {
-  "name": "schoolapp",
+  "name": "langkahsiswa",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
@@ -11,8 +11,8 @@
   },
   "scripts": {
     "setup": "node scripts/setup.mjs",
-    "dev": "concurrently -k -n api,admin,website \"npm run dev -w @schoolapp/api\" \"npm run dev -w @schoolapp/admin\" \"npm run dev -w @schoolapp/website\"",
-    "build": "npm run build -w @schoolapp/api && npm run build -w @schoolapp/admin && npm run build -w @schoolapp/website",
+    "dev": "concurrently -k -n api,admin,website \"npm run dev -w @langkahsiswa/api\" \"npm run dev -w @langkahsiswa/admin\" \"npm run dev -w @langkahsiswa/website\"",
+    "build": "npm run build -w @langkahsiswa/api && npm run build -w @langkahsiswa/admin && npm run build -w @langkahsiswa/website",
     "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/admin/tsconfig.json --noEmit && tsc -p apps/website/tsconfig.json --noEmit",
     "db:migrate": "tsx apps/api/scripts/migrate.ts",
     "db:seed": "tsx apps/api/scripts/seed.ts",

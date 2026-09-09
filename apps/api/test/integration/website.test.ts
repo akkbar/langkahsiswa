@@ -24,7 +24,7 @@ test("Phase 19: immutable website versions and public renderer API", async () =>
   const url = new URL(original.url!);
   url.searchParams.set("options", `-c search_path=${schema},public`);
   process.env.DATABASE_URL = url.toString();
-  const storage = await mkdtemp(join(tmpdir(), "schoolapp-website-"));
+  const storage = await mkdtemp(join(tmpdir(), "langkahsiswa-website-"));
   process.env.STORAGE_PATH = storage;
   const db = new Database();
   let app: Awaited<ReturnType<typeof createApp>> | undefined;

@@ -1,5 +1,5 @@
 {
-  "name": "@schoolapp/api",
+  "name": "@langkahsiswa/api",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -12,8 +12,8 @@
     "@nestjs/common": "^11.0.11",
     "@nestjs/core": "^11.0.11",
     "@nestjs/platform-express": "^11.0.11",
-    "@schoolapp/shared-types": "*",
-    "@schoolapp/validation": "*",
+    "@langkahsiswa/shared-types": "*",
+    "@langkahsiswa/validation": "*",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.5.0",

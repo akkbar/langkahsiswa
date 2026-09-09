@@ -192,6 +192,18 @@ p {
   font-size: 10px;
   color: var(--muted);
 }
+.school-pill > div {
+  min-width: 0;
+  flex: 1;
+}
+.site-switcher {
+  width: 100%;
+  min-height: 30px;
+  margin-top: 5px;
+  padding: 4px 7px;
+  font-size: 10px;
+  background: var(--surface);
+}
 .school-avatar {
   display: grid;
   place-items: center;
@@ -958,6 +970,70 @@ legend {
 .metric.accent strong {
   color: var(--accent-text);
 }
+.dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.dashboard-heading .site-status {
+  align-self: center;
+}
+.site-status {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: var(--accent-text);
+  background: var(--blue-soft);
+  font-size: 10px;
+  font-weight: 700;
+}
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.shortcut-grid a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  color: var(--text);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.shortcut-grid a:hover {
+  color: var(--blue);
+  border-color: var(--blue);
+}
+.site-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.site-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px;
+  margin-bottom: 0;
+}
+.site-card.current {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px var(--blue-soft);
+}
+.site-card h2 {
+  margin: 5px 0;
+  font-size: 17px;
+}
+.form-wide {
+  grid-column: 1 / -1;
+}
 .split-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
@@ -1132,6 +1208,11 @@ legend {
   }
 }
 @media (max-width: 760px) {
+  .dashboard-metrics,
+  .shortcut-grid,
+  .site-list {
+    grid-template-columns: 1fr;
+  }
   .metric-grid {
     grid-template-columns: 1fr;
     gap: 10px;

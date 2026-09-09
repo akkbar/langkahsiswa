@@ -46,6 +46,7 @@ import { DomainsController } from "./domains";
 import { BoardingController } from "./boarding";
 import { LibraryController } from "./library";
 import { AuditInterceptor, SecurityController } from "./security";
+import { SitesController } from "./sites";
 @Injectable()
 export class RedisConnection implements OnModuleDestroy {
   readonly client = new Redis(
@@ -123,6 +124,7 @@ class HealthController {
     BoardingController,
     LibraryController,
     SecurityController,
+    SitesController,
     ResourcesController,
   ],
 })

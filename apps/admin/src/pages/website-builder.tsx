@@ -515,7 +515,7 @@ export function WebsiteBuilderPage({
           <div>
             <h2>Identitas website</h2>
             <p className="muted small">
-              Warna utama dianjurkan #004aad agar konsisten dengan SchoolApp.
+              Warna utama dianjurkan #004aad agar konsisten dengan LangkahSiswa.
             </p>
           </div>
           {publicUrl && (

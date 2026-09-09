@@ -52,8 +52,8 @@ function minio() {
     region: process.env.MINIO_REGION || "us-east-1",
     forcePathStyle: true,
     credentials: {
-      accessKeyId: process.env.MINIO_ACCESS_KEY || "schoolapp",
-      secretAccessKey: process.env.MINIO_SECRET_KEY || "schoolapp_dev_secret",
+      accessKeyId: process.env.MINIO_ACCESS_KEY || "langkahsiswa",
+      secretAccessKey: process.env.MINIO_SECRET_KEY || "langkahsiswa_dev_secret",
     },
   });
   return minioClient;
@@ -62,7 +62,7 @@ function ensureBucket() {
   if (!bucketReady)
     bucketReady = (async () => {
       const client = minio();
-      const Bucket = process.env.MINIO_BUCKET || "schoolapp";
+      const Bucket = process.env.MINIO_BUCKET || "langkahsiswa";
       try {
         await client.send(new HeadBucketCommand({ Bucket }));
       } catch {
@@ -88,7 +88,7 @@ async function writeStored(key: string, bytes: Buffer) {
   await ensureBucket();
   await minio().send(
     new PutObjectCommand({
-      Bucket: process.env.MINIO_BUCKET || "schoolapp",
+      Bucket: process.env.MINIO_BUCKET || "langkahsiswa",
       Key: key,
       Body: bytes,
     }),
@@ -99,7 +99,7 @@ async function removeStored(key: string, provider: "FILESYSTEM" | "MINIO") {
   if (provider === "MINIO") {
     await minio().send(
       new DeleteObjectCommand({
-        Bucket: process.env.MINIO_BUCKET || "schoolapp",
+        Bucket: process.env.MINIO_BUCKET || "langkahsiswa",
         Key: key,
       }),
     );
@@ -190,7 +190,7 @@ export async function readManagedFile(
   await ensureBucket();
   const response = await minio().send(
     new GetObjectCommand({
-      Bucket: process.env.MINIO_BUCKET || "schoolapp",
+      Bucket: process.env.MINIO_BUCKET || "langkahsiswa",
       Key: storageKey,
     }),
   );

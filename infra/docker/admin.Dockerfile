@@ -8,7 +8,7 @@ COPY packages packages
 RUN npm ci
 COPY tsconfig.base.json ./
 COPY apps/admin apps/admin
-RUN npm run build -w @schoolapp/admin
+RUN npm run build -w @langkahsiswa/admin
 FROM nginx:alpine
 COPY infra/nginx/admin.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/admin/dist /usr/share/nginx/html

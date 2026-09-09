@@ -8,6 +8,6 @@ COPY packages packages
 RUN npm ci
 COPY tsconfig.base.json ./
 COPY apps/api apps/api
-RUN npm run build -w @schoolapp/api
+RUN npm run build -w @langkahsiswa/api
 EXPOSE 3000
-CMD ["sh", "-c", "npm run db:migrate && npm run start -w @schoolapp/api"]
+CMD ["sh", "-c", "npm run db:migrate && npm run start -w @langkahsiswa/api"]

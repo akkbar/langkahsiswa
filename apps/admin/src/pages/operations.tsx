@@ -216,7 +216,7 @@ export function DomainsPage({ user }: { user: Actor }) {
               />
             </label>
             <div className="notice success">
-              CNAME diarahkan ke <strong>domains.schoolapp.id</strong>.
+              CNAME diarahkan ke <strong>domains.langkahsiswa.id</strong>.
               Alternatif TXT ditampilkan setelah domain disimpan.
             </div>
           </div>
@@ -242,7 +242,7 @@ export function DomainsPage({ user }: { user: Actor }) {
                   <div className="muted small">
                     CNAME: {row.cname_target}
                     <br />
-                    TXT: schoolapp-verification={row.verification_token}
+                    TXT: langkahsiswa-verification={row.verification_token}
                   </div>
                 </>
               ),

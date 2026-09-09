@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:schoolapp_mobile/api.dart';
-import 'package:schoolapp_mobile/main.dart';
-import 'package:schoolapp_mobile/teaching_pages.dart';
-import 'package:schoolapp_mobile/finance_pages.dart';
+import 'package:langkahsiswa_mobile/api.dart';
+import 'package:langkahsiswa_mobile/main.dart';
+import 'package:langkahsiswa_mobile/teaching_pages.dart';
+import 'package:langkahsiswa_mobile/finance_pages.dart';
 
 Widget shell(Widget child) =>
     MaterialApp(theme: schoolTheme(Brightness.light), home: child);

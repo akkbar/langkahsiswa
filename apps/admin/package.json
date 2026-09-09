@@ -1,5 +1,5 @@
 {
-  "name": "@schoolapp/admin",
+  "name": "@langkahsiswa/admin",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -9,9 +9,9 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
-    "@schoolapp/shared-types": "*",
-    "@schoolapp/validation": "*",
-    "@schoolapp/website-renderer": "*",
+    "@langkahsiswa/shared-types": "*",
+    "@langkahsiswa/validation": "*",
+    "@langkahsiswa/website-renderer": "*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "^3.24.3"

@@ -230,13 +230,13 @@ export function WebsiteRenderer({
   const [dark, setDark] = useState(() =>
     preview || typeof window === "undefined"
       ? false
-      : localStorage.getItem("schoolapp-site-theme") === "dark" ||
-        (!localStorage.getItem("schoolapp-site-theme") &&
+      : localStorage.getItem("langkahsiswa-site-theme") === "dark" ||
+        (!localStorage.getItem("langkahsiswa-site-theme") &&
           matchMedia("(prefers-color-scheme: dark)").matches),
   );
   useEffect(() => {
     if (!preview)
-      localStorage.setItem("schoolapp-site-theme", dark ? "dark" : "light");
+      localStorage.setItem("langkahsiswa-site-theme", dark ? "dark" : "light");
   }, [dark, preview]);
   const linkUrl = (url: string) =>
     url.startsWith("/") && url.length > 1 ? pageUrl(url.slice(1)) : url;

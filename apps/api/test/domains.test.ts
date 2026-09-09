@@ -6,9 +6,9 @@ test("custom domain accepts exact CNAME or ownership TXT proof", async () => {
   const cname = await verifyDomainDns(
     "school.example.id",
     "secret",
-    "domains.schoolapp.id",
+    "domains.langkahsiswa.id",
     {
-      cname: async () => ["domains.schoolapp.id."],
+      cname: async () => ["domains.langkahsiswa.id."],
       txt: async () => [],
     },
   );
@@ -16,10 +16,10 @@ test("custom domain accepts exact CNAME or ownership TXT proof", async () => {
   const txt = await verifyDomainDns(
     "school.example.id",
     "secret",
-    "domains.schoolapp.id",
+    "domains.langkahsiswa.id",
     {
       cname: async () => ["unrelated.example.id"],
-      txt: async () => [["schoolapp-verification=", "secret"]],
+      txt: async () => [["langkahsiswa-verification=", "secret"]],
     },
   );
   assert.equal(txt?.method, "TXT");
@@ -27,7 +27,7 @@ test("custom domain accepts exact CNAME or ownership TXT proof", async () => {
     await verifyDomainDns(
       "school.example.id",
       "secret",
-      "domains.schoolapp.id",
+      "domains.langkahsiswa.id",
       {
         cname: async () => [],
         txt: async () => [["wrong"]],

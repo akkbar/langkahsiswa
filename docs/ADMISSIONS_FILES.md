@@ -1,6 +1,6 @@
 # PPDB dan Manajemen Berkas
 
-Phase 17–18 tersedia sejak SchoolApp V0.5. Admin sekolah dan principal mengakses
+Phase 17–18 tersedia sejak LangkahSiswa V0.5. Admin sekolah dan principal mengakses
 menu **PPDB**. Pustaka **Manajemen Berkas** dapat dibaca principal/finance dan
 dikelola school admin.
 
@@ -48,7 +48,7 @@ Mode penyimpanan:
 - `STORAGE_DRIVER=filesystem` menggunakan `STORAGE_PATH`, cocok untuk development
   lokal dan test.
 - Docker Compose mengatur `STORAGE_DRIVER=minio`, endpoint internal MinIO, dan
-  bucket `schoolapp`. Bucket dibuat otomatis saat unggahan pertama.
+  bucket `langkahsiswa`. Bucket dibuat otomatis saat unggahan pertama.
 - Bukti pembayaran lama tetap dibaca dari filesystem. Migrasi 005 memasukkannya
   ke katalog berkas tanpa memindahkan atau menggandakan isi file.
 

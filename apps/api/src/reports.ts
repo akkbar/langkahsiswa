@@ -31,7 +31,7 @@ export async function reportPdf(report: any): Promise<Buffer> {
     bufferPages: true,
     info: {
       Title: `Raport ${report.snapshot.student.name}`,
-      Author: "SchoolApp",
+      Author: "LangkahSiswa",
     },
   });
   const chunks: Buffer[] = [];
@@ -44,7 +44,7 @@ export async function reportPdf(report: any): Promise<Buffer> {
   doc
     .fillColor("#0e6655")
     .fontSize(10)
-    .text("SCHOOLAPP / LAPORAN HASIL BELAJAR");
+    .text("LANGKAHSISWA / LAPORAN HASIL BELAJAR");
   doc
     .moveDown()
     .fillColor("#132b36")
@@ -132,7 +132,7 @@ export async function reportPdf(report: any): Promise<Buffer> {
     doc
       .fontSize(8)
       .fillColor("#71817f")
-      .text(`SchoolApp | ${report.id} | ${i + 1}/${range.count}`, 48, 780, {
+      .text(`LangkahSiswa | ${report.id} | ${i + 1}/${range.count}`, 48, 780, {
         lineBreak: false,
       });
   }

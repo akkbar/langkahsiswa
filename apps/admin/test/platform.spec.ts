@@ -1,11 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
 
-const password = "SchoolApp!2026";
-async function login(page: Page, email = "admin@demo.schoolapp.id") {
+const password = "LangkahSiswa!2026";
+async function login(page: Page, email = "admin@demo.langkahsiswa.id") {
   await page.goto("/");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Kata sandi", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Masuk ke SchoolApp" }).click();
+  await page.getByRole("button", { name: "Masuk ke LangkahSiswa" }).click();
   await expect(
     page.getByRole("button", { name: "Keluar", exact: true }),
   ).toBeVisible();
@@ -68,7 +68,7 @@ test("public PPDB flows into enrollment and managed file archive", async ({
   const authResponse = await request.post("/api/v1/auth/login", {
     data: {
       tenant_slug: "demo",
-      email: "admin@demo.schoolapp.id",
+      email: "admin@demo.langkahsiswa.id",
       password,
     },
   });
@@ -139,9 +139,9 @@ test("public PPDB flows into enrollment and managed file archive", async ({
   await page.getByRole("link", { name: "Masuk akun sekolah" }).click();
   await page
     .getByLabel("Email", { exact: true })
-    .fill("admin@demo.schoolapp.id");
+    .fill("admin@demo.langkahsiswa.id");
   await page.getByLabel("Kata sandi", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Masuk ke SchoolApp" }).click();
+  await page.getByRole("button", { name: "Masuk ke LangkahSiswa" }).click();
   await page.getByRole("link", { name: "PPDB", exact: true }).click();
   await page.getByRole("button", { name: new RegExp(applicantName) }).click();
   await page.getByRole("button", { name: "Verifikasi" }).click();
@@ -196,7 +196,7 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
   const email = `parent-ui-${suffix}@example.test`;
   const auth = await (
     await request.post("/api/v1/auth/login", {
-      data: { tenant_slug: "demo", email: "admin@demo.schoolapp.id", password },
+      data: { tenant_slug: "demo", email: "admin@demo.langkahsiswa.id", password },
     })
   ).json();
   async function create(path: string, data: unknown) {
@@ -517,7 +517,7 @@ test("Google login handles first-time account linking with the current school co
 }) => {
   const auth = await (
     await request.post("/api/v1/auth/login", {
-      data: { tenant_slug: "demo", email: "admin@demo.schoolapp.id", password },
+      data: { tenant_slug: "demo", email: "admin@demo.langkahsiswa.id", password },
     })
   ).json();
   await page.route("**/api/v1/auth/google/config", (route) =>

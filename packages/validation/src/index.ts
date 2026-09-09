@@ -375,6 +375,19 @@ export const tenantSchema = z
     admin_password: z.string().min(12).max(100),
   })
   .strict();
+export const siteSchema = z
+  .object({
+    name,
+    slug: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(80),
+    school_name: name.optional(),
+    address: optionalText,
+    phone: optionalText,
+    principal_name: optionalText,
+  })
+  .strict();
 export const userSchema = z
   .object({
     name,

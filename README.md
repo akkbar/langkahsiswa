@@ -1,4 +1,4 @@
-# SchoolApp
+# LangkahSiswa
 
 **V1.0 — implementasi phase 0–22 dan 24; phase 23 ditunda.** API NestJS, admin React,
 multi-tenant PostgreSQL, autentikasi/role, master sekolah, siswa/wali/guru/staf,
@@ -31,7 +31,7 @@ npm run dev
 
 Buka admin di **http://localhost:5173** dan renderer website sekolah di
 **http://localhost:5174/{kode-sekolah}/{slug}**. Login demo: sekolah `demo`, email
-`admin@demo.schoolapp.id`, password `SchoolApp!2026`.
+`admin@demo.langkahsiswa.id`, password `LangkahSiswa!2026`.
 Health: **http://localhost:3000/health**.
 
 Implementasi menggunakan migrasi SQL versioned dan `pg` untuk PostgreSQL.
@@ -155,7 +155,7 @@ Untuk backend saya lebih memilih **NestJS** daripada Express biasa karena projec
           │                 │                  │
           ▼                 ▼                  ▼
 
- school.sch.id        app.schoolapp.id     api.schoolapp.id
+ school.sch.id        app.langkahsiswa.id     api.langkahsiswa.id
       │                     │                  │
       ▼                     ▼                  ▼
 ┌─────────────┐      ┌──────────────┐    ┌───────────────┐
@@ -309,7 +309,7 @@ JWT
 Contoh:
 
 ```text
-smkn1.schoolapp.id
+smkn1.langkahsiswa.id
 ```
 
 atau:
@@ -370,8 +370,8 @@ verified_at
 Contoh:
 
 ```text
-schoolapp.id
-smakarya.schoolapp.id
+langkahsiswa.id
+smakarya.langkahsiswa.id
 www.smakarya.sch.id
 ```
 
@@ -957,7 +957,7 @@ Principal
 Pisahkan dari dashboard.
 
 ```text
-admin.schoolapp.id
+admin.langkahsiswa.id
 ```
 
 untuk management.
@@ -979,7 +979,7 @@ Keduanya tetap React tetapi aplikasi berbeda.
 Flutter menjadi satu application:
 
 ```text
-SchoolApp
+LangkahSiswa
 ```
 
 Setelah login:
@@ -1373,7 +1373,7 @@ Wallet mungkin salah satu service pertama yang layak dipisah karena transaction-
 Kalau kamu mau mulai coding, saya justru akan membuat:
 
 ```text
-schoolapp/
+langkahsiswa/
 
 apps/
 │

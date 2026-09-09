@@ -29,8 +29,8 @@ test("event targets and chronology are validated", () => {
 test("FCM signs OAuth assertion, sends HTTP v1 payload, caches tokens and classifies failures", async () => {
   const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const account = {
-    project_id: "schoolapp-test",
-    client_email: "push@schoolapp-test.iam.gserviceaccount.com",
+    project_id: "langkahsiswa-test",
+    client_email: "push@langkahsiswa-test.iam.gserviceaccount.com",
     private_key: keys.privateKey
       .export({ type: "pkcs8", format: "pem" })
       .toString(),
@@ -70,7 +70,7 @@ test("FCM signs OAuth assertion, sends HTTP v1 payload, caches tokens and classi
     sends++;
     assert.equal(
       url,
-      "https://fcm.googleapis.com/v1/projects/schoolapp-test/messages:send",
+      "https://fcm.googleapis.com/v1/projects/langkahsiswa-test/messages:send",
     );
     assert.equal(
       (options.headers as any).Authorization,
@@ -85,7 +85,7 @@ test("FCM signs OAuth assertion, sends HTTP v1 payload, caches tokens and classi
         { error: { details: [{ errorCode: "UNREGISTERED" }] } },
         { status: 404 },
       );
-    return Response.json({ name: "projects/schoolapp-test/messages/123" });
+    return Response.json({ name: "projects/langkahsiswa-test/messages/123" });
   }) as typeof fetch;
   const sender = new FcmSender(account, fakeFetch);
   await sender.send("test-device-token", "Title", "Body", { type: "GRADE" });

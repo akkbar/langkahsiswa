@@ -15,7 +15,7 @@ export async function seed(db: Database) {
       name: "SMP Nusantara",
       slug: "demo",
       admin_name: "Administrator Sekolah",
-      admin_email: process.env.SEED_ADMIN_EMAIL || "admin@demo.schoolapp.id",
+      admin_email: process.env.SEED_ADMIN_EMAIL || "admin@demo.langkahsiswa.id",
       admin_password: password,
     });
     const insert = async (table: string, data: Record<string, unknown>) => {

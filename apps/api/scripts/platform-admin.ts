@@ -5,7 +5,7 @@ import { tenantSchema } from "../../../packages/validation/src";
 const db = new Database();
 async function bootstrap() {
   const input = tenantSchema.parse({
-    name: "SchoolApp Platform",
+    name: "LangkahSiswa Platform",
     slug: process.env.PLATFORM_SLUG || "platform",
     admin_name: process.env.PLATFORM_ADMIN_NAME || "Platform Administrator",
     admin_email: process.env.PLATFORM_ADMIN_EMAIL,

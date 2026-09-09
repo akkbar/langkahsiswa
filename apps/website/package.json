@@ -1,5 +1,5 @@
 {
-  "name": "@schoolapp/website",
+  "name": "@langkahsiswa/website",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
-    "@schoolapp/website-renderer": "*",
+    "@langkahsiswa/website-renderer": "*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

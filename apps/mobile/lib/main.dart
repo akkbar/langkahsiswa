@@ -12,7 +12,7 @@ import 'teaching_pages.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SchoolApp());
+  runApp(const LangkahSiswa());
 }
 
 ThemeData schoolTheme(Brightness brightness) {
@@ -57,13 +57,13 @@ ThemeData schoolTheme(Brightness brightness) {
   );
 }
 
-class SchoolApp extends StatefulWidget {
-  const SchoolApp({super.key});
+class LangkahSiswa extends StatefulWidget {
+  const LangkahSiswa({super.key});
   @override
-  State<SchoolApp> createState() => _SchoolAppState();
+  State<LangkahSiswa> createState() => _LangkahSiswaState();
 }
 
-class _SchoolAppState extends State<SchoolApp> {
+class _LangkahSiswaState extends State<LangkahSiswa> {
   ThemeMode mode = ThemeMode.system;
   final api = SchoolApi();
   @override
@@ -85,7 +85,7 @@ class _SchoolAppState extends State<SchoolApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'SchoolApp',
+    title: 'LangkahSiswa',
     debugShowCheckedModeBanner: false,
     theme: schoolTheme(Brightness.light),
     darkTheme: schoolTheme(Brightness.dark),
@@ -434,7 +434,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('SchoolApp'),
+      title: const Text('LangkahSiswa'),
       actions: [
         IconButton(
           onPressed: openInbox,

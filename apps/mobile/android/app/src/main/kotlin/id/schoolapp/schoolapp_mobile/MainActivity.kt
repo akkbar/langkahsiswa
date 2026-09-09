@@ -1,4 +1,4 @@
-package id.schoolapp.schoolapp_mobile
+package id.langkahsiswa.langkahsiswa_mobile
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,1 +1,1 @@
-{"name":"@schoolapp/validation","version":"0.2.0","private":true,"main":"src/index.ts","types":"src/index.ts","dependencies":{"zod":"^3.24.3"}}
+{"name":"@langkahsiswa/validation","version":"0.2.0","private":true,"main":"src/index.ts","types":"src/index.ts","dependencies":{"zod":"^3.24.3"}}

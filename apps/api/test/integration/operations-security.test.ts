@@ -88,8 +88,8 @@ test("Phase 20–22 and 24: domains, boarding, library, wallet and security", as
       domain: "school.operations.example",
     });
     assert.equal(domain.verification_status, "PENDING");
-    assert.equal(domain.instructions.cname.value, "domains.schoolapp.id");
-    assert.match(domain.instructions.txt.value, /^schoolapp-verification=/);
+    assert.equal(domain.instructions.cname.value, "domains.langkahsiswa.id");
+    assert.match(domain.instructions.txt.value, /^langkahsiswa-verification=/);
     assert.equal(
       (await request("domains", "GET", undefined, foreign)).total,
       0,

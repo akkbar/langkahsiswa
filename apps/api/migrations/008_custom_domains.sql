@@ -4,7 +4,7 @@ ALTER TABLE tenant_domains
   CHECK(verification_status IN ('PENDING','VERIFIED','ACTIVE','FAILED')),
  ADD COLUMN ssl_status text NOT NULL DEFAULT 'PENDING'
   CHECK(ssl_status IN ('PENDING','ACTIVE','FAILED')),
- ADD COLUMN cname_target text NOT NULL DEFAULT 'domains.schoolapp.id',
+ ADD COLUMN cname_target text NOT NULL DEFAULT 'domains.langkahsiswa.id',
  ADD COLUMN last_checked_at timestamptz,
  ADD COLUMN verification_error text,
  ADD COLUMN created_by uuid,

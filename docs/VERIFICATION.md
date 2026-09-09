@@ -1,4 +1,4 @@
-# Verifikasi SchoolApp V1.0
+# Verifikasi LangkahSiswa V1.0
 
 Pemeriksaan lokal selesai pada 9 September 2026 untuk phase 0–22 dan 24.
 

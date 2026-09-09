@@ -39,6 +39,7 @@ const read = [
   "report.read",
   "event.read",
   "notification.read",
+  "site.read",
 ];
 export const rolePermissions: Record<Role, string[]> = {
   SUPER_ADMIN: ["*"],
@@ -138,14 +139,31 @@ export async function createTenant(
       [input.name, input.slug],
     )
   ).rows[0];
+  const organization = (
+    await sql.query(
+      "INSERT INTO organizations(name,slug) VALUES($1,$2) RETURNING id",
+      [input.name, input.slug],
+    )
+  ).rows[0];
+  await sql.query(
+    "INSERT INTO organization_sites(organization_id,tenant_id,site_code,is_primary) VALUES($1,$2,$3,true)",
+    [organization.id, tenant.id, input.slug],
+  );
   await sql.query("INSERT INTO tenant_settings(tenant_id) VALUES($1)", [
     tenant.id,
   ]);
+  const account = (
+    await sql.query(
+      "INSERT INTO accounts(name,email) VALUES($1,$2) ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id",
+      [input.admin_name, input.admin_email],
+    )
+  ).rows[0];
   const user = (
     await sql.query(
-      "INSERT INTO users(tenant_id,name,email,password_hash) VALUES($1,$2,$3,$4) RETURNING id",
+      "INSERT INTO users(tenant_id,account_id,name,email,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING id",
       [
         tenant.id,
+        account.id,
         input.admin_name,
         input.admin_email,
         await hash(input.admin_password, 12),
@@ -164,7 +182,16 @@ export class AuthService {
   async actor(userId: string, tenantId: string): Promise<Actor> {
     const user = (
       await this.db.query(
-        "SELECT u.id,u.tenant_id,u.name,u.email FROM users u JOIN tenants t ON t.id=u.tenant_id WHERE u.id=$1 AND u.tenant_id=$2 AND u.active AND t.status='ACTIVE'",
+        `SELECT u.id,u.tenant_id,u.account_id,u.name,u.email,
+         t.name AS tenant_name,t.slug AS tenant_slug,
+         o.id AS organization_id,o.name AS organization_name
+         FROM users u
+         JOIN tenants t ON t.id=u.tenant_id
+         JOIN organization_sites os ON os.tenant_id=t.id
+         JOIN organizations o ON o.id=os.organization_id
+         JOIN accounts a ON a.id=u.account_id
+         WHERE u.id=$1 AND u.tenant_id=$2 AND u.active AND a.active
+         AND t.status='ACTIVE' AND o.status='ACTIVE'`,
         [userId, tenantId],
       )
     ).rows[0];
@@ -243,8 +270,8 @@ export class AuthService {
         {
           subject: userId,
           expiresIn: "15m",
-          issuer: "schoolapp",
-          audience: "schoolapp",
+          issuer: "langkahsiswa",
+          audience: "langkahsiswa",
         },
       ),
       refresh_token: refresh,
@@ -265,8 +292,8 @@ export class AuthGuard implements CanActivate {
     try {
       claims = jwt.verify(token, jwtSecret(), {
         algorithms: ["HS256"],
-        issuer: "schoolapp",
-        audience: "schoolapp",
+        issuer: "langkahsiswa",
+        audience: "langkahsiswa",
       }) as jwt.JwtPayload;
       uuid.parse(claims.sub);
       uuid.parse(claims.tenant_id);
@@ -304,7 +331,7 @@ export class AuthController {
     private readonly google: GoogleIdentityVerifier,
   ) {}
   private cookie(res: Response, value: string) {
-    res.cookie("schoolapp_refresh", value, {
+    res.cookie("langkahsiswa_refresh", value, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
@@ -463,7 +490,7 @@ export class AuthController {
       .object({ refresh_token: z.string().min(20).max(200).optional() })
       .strict()
       .parse(body || {});
-    const token = input.refresh_token || req.cookies?.schoolapp_refresh;
+    const token = input.refresh_token || req.cookies?.langkahsiswa_refresh;
     if (!token) throw new UnauthorizedException("Refresh token diperlukan");
     const resolved = await this.auth.resolveTenant(req);
     const result = await this.auth.db.transaction(null, async (sql) => {
@@ -525,7 +552,7 @@ export class AuthController {
       .object({ refresh_token: z.string().min(20).max(200).optional() })
       .strict()
       .parse(body || {});
-    const refresh = input.refresh_token || req.cookies?.schoolapp_refresh;
+    const refresh = input.refresh_token || req.cookies?.langkahsiswa_refresh;
     if (refresh) {
       await this.auth.db.query(
         `UPDATE user_sessions SET status='REVOKED',revoked_at=now() WHERE id=(
@@ -537,7 +564,7 @@ export class AuthController {
         [digest(refresh)],
       );
     }
-    res.clearCookie("schoolapp_refresh", { path: "/api/v1/auth" });
+    res.clearCookie("langkahsiswa_refresh", { path: "/api/v1/auth" });
     return { ok: true };
   }
   @Get("me") @UseGuards(AuthGuard) me(@Req() req: AuthRequest) {
@@ -564,9 +591,16 @@ export class UsersController {
     return this.db.transaction(req.actor.tenant_id, async (sql) => {
       const user = (
         await sql.query(
-          "INSERT INTO users(tenant_id,name,email,password_hash) VALUES($1,$2,$3,$4) RETURNING id,tenant_id,name,email",
+          "INSERT INTO accounts(name,email) VALUES($1,$2) ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id",
+          [input.name, input.email],
+        )
+      ).rows[0];
+      const membership = (
+        await sql.query(
+          "INSERT INTO users(tenant_id,account_id,name,email,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING id,tenant_id,account_id,name,email",
           [
             req.actor.tenant_id,
+            user.id,
             input.name,
             input.email,
             await hash(input.password, 12),
@@ -576,9 +610,9 @@ export class UsersController {
       for (const role of new Set(input.roles))
         await sql.query(
           "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,$3)",
-          [req.actor.tenant_id, user.id, role],
+          [req.actor.tenant_id, membership.id, role],
         );
-      return user;
+      return membership;
     });
   }
 }

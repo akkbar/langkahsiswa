@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { Actor } from "../../../../packages/shared-types/src";
 import { ErrorBox } from "../components";
 import { api, send, setToken } from "../api";
@@ -144,7 +144,7 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
     <main className="login-page">
       <section className="login-story">
         <div className="brand">
-          <span className="brandmark">S</span>SchoolApp
+          <span className="brandmark">S</span>LangkahSiswa
         </div>
         <div>
           <span className="eyebrow">RUANG KERJA SEKOLAH</span>
@@ -210,7 +210,7 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
             />
           </label>
           <button className="primary" disabled={busy}>
-            {busy ? "Memeriksa akun…" : "Masuk ke SchoolApp →"}
+            {busy ? "Memeriksa akun…" : "Masuk ke LangkahSiswa →"}
           </button>
         </form>
         <div className="login-divider">

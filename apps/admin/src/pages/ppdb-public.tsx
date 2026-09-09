@@ -47,7 +47,7 @@ export function PublicAdmissions() {
     <main className="public-page">
       <header className="public-header">
         <a className="brand" href="#">
-          <span className="brandmark">S</span>SchoolApp
+          <span className="brandmark">S</span>LangkahSiswa
         </a>
         <div className="actions">
           <ThemeToggle />

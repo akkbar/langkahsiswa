@@ -1,6 +1,6 @@
 # Status implementasi — 9 September 2026
 
-Implementasi phase 0–22 dan 24 selesai sebagai **SchoolApp V1.0**. Phase 23
+Implementasi phase 0–22 dan 24 selesai sebagai **LangkahSiswa V1.0**. Phase 23
 ditunda sesuai keputusan proyek dan memiliki catatan implementasi terpisah.
 Phase 0–9 diperiksa kembali dengan pengujian regresi database/HTTP.
 Panduan menjalankan dan batas implementasi: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
@@ -61,7 +61,7 @@ Goal: semua project bisa jalan lokal.
 Buat monorepo:
 
 ```text
-schoolapp/
+langkahsiswa/
 ├── apps/
 │   ├── api/          # NestJS + TypeScript
 │   ├── admin/        # React + TypeScript
@@ -133,7 +133,7 @@ created_at
 Kemudian konsep request:
 
 ```text
-demo.schoolapp.id
+demo.langkahsiswa.id
         ↓
 domain resolver
         ↓
@@ -865,7 +865,7 @@ tercantum di [docs/OPERATIONS_SECURITY.md](docs/OPERATIONS_SECURITY.md).
 Setelah website renderer berjalan:
 
 ```text
-schoolabc.schoolapp.id
+schoolabc.langkahsiswa.id
 ```
 
 baru custom domain:
@@ -1119,7 +1119,7 @@ Step coding pertama kita cukup:
 ```text
 STEP 1
 
-schoolapp/
+langkahsiswa/
 ├── apps/
 │   └── api/
 │
@@ -1153,4 +1153,4 @@ Jadi milestone awal kita sangat konkret:
 
 > **Login sebagai School Admin → membuat Student → Student tersimpan di PostgreSQL dan terisolasi berdasarkan tenant.**
 
-Kalau flow kecil itu sudah selesai, fondasi **SchoolApp V0.1** sudah benar. Setelah itu kita bisa lanjut satu step demi satu step seperti project Industrial AI kemarin, termasuk command, struktur folder, Prisma schema, dan code yang perlu dibuat.
+Kalau flow kecil itu sudah selesai, fondasi **LangkahSiswa V0.1** sudah benar. Setelah itu kita bisa lanjut satu step demi satu step seperti project Industrial AI kemarin, termasuk command, struktur folder, Prisma schema, dan code yang perlu dibuat.

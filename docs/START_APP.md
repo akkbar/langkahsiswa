@@ -1,4 +1,4 @@
-# Menjalankan SchoolApp
+# Menjalankan LangkahSiswa
 
 Panduan ini memakai PowerShell pada Windows. Jalankan semua perintah awal dari
 root repository `D:\OpenAIoT\AI\school`.
@@ -57,12 +57,12 @@ Untuk development lokal, pastikan nilai utama dalam `.env` mengarah ke layanan
 lokal:
 
 ```dotenv
-DATABASE_URL=postgresql://schoolapp:schoolapp_dev@localhost:5432/schoolapp
+DATABASE_URL=postgresql://langkahsiswa:langkahsiswa_dev@localhost:5432/langkahsiswa
 REDIS_URL=redis://localhost:6379
 STORAGE_DRIVER=filesystem
 STORAGE_PATH=.local/uploads
-SEED_ADMIN_EMAIL=admin@demo.schoolapp.id
-SEED_ADMIN_PASSWORD=SchoolApp!2026
+SEED_ADMIN_EMAIL=admin@demo.langkahsiswa.id
+SEED_ADMIN_PASSWORD=LangkahSiswa!2026
 ```
 
 `GOOGLE_CLIENT_ID`, kredensial Firebase, dan MinIO tidak wajib untuk login
@@ -120,8 +120,8 @@ Buka `http://localhost:5173`, kemudian gunakan:
 
 ```text
 Kode sekolah : demo
-Email        : admin@demo.schoolapp.id
-Password     : SchoolApp!2026
+Email        : admin@demo.langkahsiswa.id
+Password     : LangkahSiswa!2026
 ```
 
 Jika nilai `SEED_ADMIN_EMAIL` atau `SEED_ADMIN_PASSWORD` di `.env` diubah sebelum
@@ -250,6 +250,36 @@ Perintah `stop` mempertahankan database dan berkas pada Docker volume. Gunakan
 6. Jika muncul error tabel atau kolom belum tersedia, jalankan
    `npm run db:migrate` lalu restart API.
 7. Jika token lama ditolak setelah migrasi phase 24, keluar lalu login kembali.
+
+### Port 3000, 5173, atau 5174 sudah dipakai
+
+Pastikan stack Docker penuh tidak sedang berjalan bersamaan dengan mode npm:
+
+```powershell
+docker compose stop api admin website
+```
+
+Jika port masih dipakai, tampilkan PID dan command line prosesnya. Contoh untuk
+port admin `5173`:
+
+```powershell
+$listener = Get-NetTCPConnection -LocalPort 5173 -State Listen
+$pidValue = $listener.OwningProcess
+Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" |
+  Select-Object ProcessId, Name, ExecutablePath, CommandLine
+```
+
+Jika command line tersebut menunjuk ke repository LangkahSiswa dan merupakan proses
+development lama, hentikan pohon prosesnya lalu jalankan ulang aplikasi:
+
+```powershell
+taskkill /PID $pidValue /T /F
+npm run dev
+```
+
+Ganti `5173` dengan `3000` atau `5174` untuk memeriksa port API atau website.
+Jangan menghentikan PID jika command line berasal dari aplikasi lain yang masih
+dibutuhkan.
 
 Konfigurasi login Google dijelaskan di [GOOGLE_LOGIN.md](GOOGLE_LOGIN.md),
 sedangkan Firebase, push notification, dan build APK dijelaskan di

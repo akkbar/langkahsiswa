@@ -15,9 +15,9 @@ test("admin manages student data, edits schedules, and uses academic screens", a
   });
   await page
     .getByLabel("Email", { exact: true })
-    .fill("admin@demo.schoolapp.id");
-  await page.getByLabel("Kata sandi", { exact: true }).fill("SchoolApp!2026");
-  await page.getByRole("button", { name: "Masuk ke SchoolApp" }).click();
+    .fill("admin@demo.langkahsiswa.id");
+  await page.getByLabel("Kata sandi", { exact: true }).fill("LangkahSiswa!2026");
+  await page.getByRole("button", { name: "Masuk ke LangkahSiswa" }).click();
   await expect(
     page.getByRole("heading", { name: "Siswa", exact: true }),
   ).toBeVisible();

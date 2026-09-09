@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { resources } from "../../../packages/validation/src";
-import type { Actor } from "../../../packages/shared-types/src";
-import { all, send, setToken, refreshSession } from "./api";
+import type { Actor, SiteSummary } from "../../../packages/shared-types/src";
+import { all, api, send, setToken, refreshSession } from "./api";
 import { Catalog, can, ErrorBox, Empty } from "./components";
 import "./styles.css";
 import { Login } from "./pages/login";
@@ -34,22 +34,42 @@ import {
   LibraryPage,
   SecurityPage,
 } from "./pages/operations";
-const homeRoute = (user: Actor) =>
-  can(user, "student.read")
-    ? "students"
-    : financeAdmin(user)
-      ? "billing"
-      : user.roles.some((role) =>
-            ["PARENT", "STUDENT", "TEACHER"].includes(role),
-          )
-        ? "portal"
-        : "events";
-function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
+import { DashboardPage, SitesPage } from "./pages/dashboard";
+const homeRoute = (_user: Actor) => "dashboard";
+function Workspace({
+  user,
+  onLogout,
+  onUserChange,
+}: {
+  user: Actor;
+  onLogout: () => void;
+  onUserChange: (user: Actor) => void;
+}) {
   const [route, setRoute] = useState(location.hash.slice(1) || homeRoute(user));
   const [catalog, setCatalog] = useState<Catalog>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sites, setSites] = useState<SiteSummary[]>([]);
+  async function loadSites() {
+    if (!can(user, "site.read")) return;
+    const result = await api<{ data: SiteSummary[] }>("sites");
+    setSites(result.data);
+  }
+  async function switchSite(id: string) {
+    if (id === user.tenant_id) return;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await send(`sites/${id}/switch`, {});
+      setToken(result.access_token);
+      onUserChange(result.user);
+      location.hash = "dashboard";
+    } catch (reason) {
+      setError((reason as Error).message);
+      setLoading(false);
+    }
+  }
   async function refresh() {
     const keys = Object.keys(resources).filter((key) =>
       can(user, `${resources[key].permission}.read`),
@@ -59,7 +79,7 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
     setCatalog(Object.fromEntries(keys.map((key, i) => [key, values[i]])));
   }
   useEffect(() => {
-    refresh()
+    Promise.all([refresh(), loadSites()])
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
     const change = () => {
@@ -205,22 +225,101 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
       group: "Administrasi",
       permission: "",
     });
-  const groups = [...new Set(links.map((l) => l.group))];
+  if (can(user, "site.read"))
+    links.push({
+      key: "sites",
+      title: "Lokasi Sekolah",
+      group: "Data Sekolah",
+      permission: "",
+    });
+  links.unshift({
+    key: "dashboard",
+    title: "Dashboard",
+    group: "Dashboard",
+    permission: "",
+  });
+  const dataKeys = new Set([
+    "schools",
+    "academic-years",
+    "semesters",
+    "grade-levels",
+    "classes",
+    "subjects",
+    "students",
+    "parents",
+    "teachers",
+    "staff",
+    "student-guardians",
+    "users",
+    "settings",
+    "security",
+    "sites",
+  ]);
+  const academicKeys = new Set([
+    "teacher-subjects",
+    "class-subjects",
+    "class-students",
+    "timetables",
+    "attendance",
+    "assessment-categories",
+    "assessments",
+    "grades",
+    "report-cards",
+  ]);
+  for (const link of links) {
+    if (link.key === "dashboard") link.group = "Dashboard";
+    else if (link.key === "portal") link.group = "Utama";
+    else if (dataKeys.has(link.key)) link.group = "Data Sekolah";
+    else if (academicKeys.has(link.key)) link.group = "Akademik";
+    else if (["billing", "wallet", "pos"].includes(link.key))
+      link.group = "Keuangan";
+    else if (["boarding", "library"].includes(link.key))
+      link.group = "Operasional";
+    else if (["events", "notifications"].includes(link.key))
+      link.group = "Komunikasi";
+    else link.group = "Publikasi & PPDB";
+  }
+  const groupOrder = [
+    "Dashboard",
+    "Utama",
+    "Akademik",
+    "Keuangan",
+    "Operasional",
+    "Komunikasi",
+    "Publikasi & PPDB",
+    "Data Sekolah",
+  ];
+  const groups = groupOrder.filter((group) =>
+    links.some((link) => link.group === group),
+  );
   const allowed = links.some((l) => l.key === route);
-  const title = links.find((l) => l.key === route)?.title || "SchoolApp";
+  const title = links.find((l) => l.key === route)?.title || "LangkahSiswa";
   return (
     <div className="workspace">
       <aside className={mobileOpen ? "sidebar open" : "sidebar"}>
         <a className="brand" href={`#${homeRoute(user)}`}>
-          <span className="brandmark">S</span>SchoolApp
+          <span className="brandmark">L</span>LangkahSiswa
         </a>
         <div className="school-pill">
           <span className="school-avatar">▥</span>
           <div>
-            <strong>
-              {String(catalog.schools?.[0]?.name || "Sekolah Anda")}
-            </strong>
-            <span>Ruang kerja sekolah</span>
+            <strong>{user.organization_name || "Yayasan Anda"}</strong>
+            {sites.length > 1 ? (
+              <select
+                className="site-switcher"
+                aria-label="Lokasi aktif"
+                value={user.tenant_id}
+                onChange={(event) => void switchSite(event.target.value)}
+              >
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span>{user.tenant_name || "Ruang kerja sekolah"}</span>
+            )}
           </div>
         </div>
         <nav aria-label="Navigasi utama">
@@ -309,6 +408,15 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
             <Empty text="Menyiapkan data sekolah…" />
           ) : !allowed ? (
             <Empty text="Halaman tidak tersedia untuk peran Anda. Pilih menu di samping." />
+          ) : route === "dashboard" ? (
+            <DashboardPage user={user} catalog={catalog} sites={sites} />
+          ) : route === "sites" ? (
+            <SitesPage
+              user={user}
+              sites={sites}
+              reload={loadSites}
+              switchSite={switchSite}
+            />
           ) : resources[route] ? (
             <ResourcePage
               key={route}
@@ -356,7 +464,7 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
           )}
         </main>
         <footer className="app-footer">
-          SchoolApp{" "}
+          LangkahSiswa{" "}
           <span>Akademik, keuangan, dan komunikasi dalam satu ruang.</span>
         </footer>
       </div>
@@ -387,7 +495,7 @@ function App() {
   if (loading)
     return (
       <main className="boot" role="status">
-        Memuat SchoolApp…
+        Memuat LangkahSiswa…
       </main>
     );
   return !user && publicRoute === "ppdb" ? (
@@ -395,6 +503,7 @@ function App() {
   ) : user ? (
     <Workspace
       user={user}
+      onUserChange={setUser}
       onLogout={() => {
         setUser(null);
         location.hash = "";

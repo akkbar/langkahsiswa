@@ -1,4 +1,4 @@
-# SchoolApp V1.0 — Phase 20–22 dan 24
+# LangkahSiswa V1.0 — Phase 20–22 dan 24
 
 Dokumen ini menjelaskan custom domain, operasional pondok, perpustakaan, serta
 audit dan keamanan. Phase 23 ditunda secara eksplisit di
@@ -10,7 +10,7 @@ Menu **Custom Domain** tersedia untuk school admin dan dapat dibaca principal.
 Admin memasukkan domain, lalu sistem memberikan dua pilihan bukti:
 
 - CNAME domain ke nilai `CUSTOM_DOMAIN_CNAME_TARGET`.
-- TXT `_schoolapp-verification.<domain>` dengan token kepemilikan unik.
+- TXT `_langkahsiswa-verification.<domain>` dengan token kepemilikan unik.
 
 Tombol verifikasi menjalankan lookup DNS nyata. Domain yang terverifikasi dapat
 menjadi domain utama dan langsung dipakai resolver tenant serta renderer publik.

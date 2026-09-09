@@ -12,7 +12,7 @@ FirebaseOptions get firebaseOptions => const FirebaseOptions(
   projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
   iosBundleId: String.fromEnvironment(
     'FIREBASE_IOS_BUNDLE_ID',
-    defaultValue: 'id.schoolapp.schoolappMobile',
+    defaultValue: 'id.langkahsiswa.langkahsiswaMobile',
   ),
 );
 

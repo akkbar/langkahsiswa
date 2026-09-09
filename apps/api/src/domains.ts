@@ -46,10 +46,10 @@ export async function verifyDomainDns(
   )
     return { method: "CNAME" as const, value: expected };
   const txt = await lookup
-    .txt(`_schoolapp-verification.${domain}`)
+    .txt(`_langkahsiswa-verification.${domain}`)
     .catch(() => []);
   const values = txt.map((parts) => parts.join(""));
-  if (values.includes(`schoolapp-verification=${token}`))
+  if (values.includes(`langkahsiswa-verification=${token}`))
     return { method: "TXT" as const, value: token };
   return null;
 }
@@ -75,7 +75,7 @@ export class DomainsController {
   @Post() async create(@Req() req: AuthRequest, @Body() body: unknown) {
     allow(req.actor, "domain.write");
     const input = z.object({ domain: domainSchema }).strict().parse(body);
-    const reserved = (process.env.BASE_DOMAIN || "schoolapp.id").toLowerCase();
+    const reserved = (process.env.BASE_DOMAIN || "langkahsiswa.id").toLowerCase();
     if (input.domain === reserved)
       throw new BadRequestException(
         "Domain utama platform tidak dapat digunakan",
@@ -99,8 +99,8 @@ export class DomainsController {
         instructions: {
           cname: { host: input.domain, value: target },
           txt: {
-            host: `_schoolapp-verification.${input.domain}`,
-            value: `schoolapp-verification=${token}`,
+            host: `_langkahsiswa-verification.${input.domain}`,
+            value: `langkahsiswa-verification=${token}`,
           },
         },
       };

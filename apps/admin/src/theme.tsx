@@ -14,7 +14,7 @@ export function ThemeToggle() {
         const next = theme === "dark" ? "light" : "dark";
         document.documentElement.dataset.theme = next;
         try {
-          localStorage.setItem("schoolapp-theme", next);
+          localStorage.setItem("langkahsiswa-theme", next);
         } catch {
           /* Theme works without storage. */
         }

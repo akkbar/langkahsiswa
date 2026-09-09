@@ -19,7 +19,7 @@ test("Phase 10–13: real PostgreSQL finance, proof files and concurrent POS", a
   url.searchParams.set("options", `-c search_path=${schema},public`);
   process.env.DATABASE_URL = url.toString();
   process.env.NODE_ENV = "test";
-  const storage = await mkdtemp(join(tmpdir(), "schoolapp-finance-"));
+  const storage = await mkdtemp(join(tmpdir(), "langkahsiswa-finance-"));
   process.env.STORAGE_PATH = storage;
   const db = new Database();
   let app: Awaited<ReturnType<typeof createApp>> | undefined;

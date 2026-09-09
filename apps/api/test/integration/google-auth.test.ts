@@ -9,7 +9,7 @@ import { GoogleIdentityVerifier } from "../../src/google-identity";
 
 test("Google login maps existing tenant accounts, preserves roles and revokes mobile sessions", async (t) => {
   const base = new Database();
-  const schema = `schoolapp_google_${randomUUID().replaceAll("-", "")}`;
+  const schema = `langkahsiswa_google_${randomUUID().replaceAll("-", "")}`;
   await base.query(`CREATE SCHEMA ${schema}`);
   const previous = process.env.DATABASE_URL;
   const previousGoogle = process.env.GOOGLE_CLIENT_ID;
