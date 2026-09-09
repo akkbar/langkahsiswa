@@ -1,11 +1,12 @@
 import { useState } from "react";
-export function ThemeToggle() {
+export function ThemeToggle({ menuItem = false }: { menuItem?: boolean }) {
   const [theme, setTheme] = useState(() =>
     document.documentElement.dataset.theme === "dark" ? "dark" : "light",
   );
   return (
     <button
       type="button"
+      role={menuItem ? "menuitem" : undefined}
       className="theme-toggle"
       aria-label={
         theme === "dark" ? "Aktifkan mode terang" : "Aktifkan mode gelap"
@@ -22,7 +23,7 @@ export function ThemeToggle() {
       }}
     >
       <span aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>
-      <span>{theme === "dark" ? "Terang" : "Gelap"}</span>
+      <span>{theme === "dark" ? "Mode Terang" : "Mode Gelap"}</span>
     </button>
   );
 }

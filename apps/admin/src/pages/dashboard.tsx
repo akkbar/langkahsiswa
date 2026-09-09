@@ -1,8 +1,5 @@
 import React, { useState } from "react";
-import type {
-  Actor,
-  SiteSummary,
-} from "../../../../packages/shared-types/src";
+import type { Actor, SiteSummary } from "../../../../packages/shared-types/src";
 import type { Catalog } from "../components";
 import { ErrorBox, can } from "../components";
 import { send } from "../api";
@@ -111,7 +108,9 @@ export function SitesPage({
       <section className="site-list">
         {sites.map((site) => (
           <article
-            className={site.current ? "card site-card current" : "card site-card"}
+            className={
+              site.current ? "card site-card current" : "card site-card"
+            }
             key={site.id}
           >
             <div>

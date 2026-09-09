@@ -6,6 +6,7 @@ import { ThemeToggle } from "../theme";
 type Row = Record<string, any>;
 const empty = {
   period_id: "",
+  track_id: "",
   target_grade_level_id: "",
   name: "",
   email: "",
@@ -47,7 +48,7 @@ export function PublicAdmissions() {
     <main className="public-page">
       <header className="public-header">
         <a className="brand" href="#">
-          <span className="brandmark">S</span>LangkahSiswa
+          <span className="brandmark">L</span>LangkahSiswa
         </a>
         <div className="actions">
           <ThemeToggle />
@@ -163,6 +164,7 @@ export function PublicAdmissions() {
                     method: "POST",
                     body: JSON.stringify({
                       ...form,
+                      track_id: form.track_id || null,
                       email: form.email || null,
                       phone: form.phone || null,
                       address: form.address || null,
@@ -191,6 +193,7 @@ export function PublicAdmissions() {
                         setForm({
                           ...form,
                           period_id: event.target.value,
+                          track_id: "",
                           target_grade_level_id: "",
                         })
                       }
@@ -199,6 +202,24 @@ export function PublicAdmissions() {
                       {periods.map((row) => (
                         <option key={row.id} value={row.id}>
                           {row.name} · {row.academic_year}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Jalur PPDB
+                    <select
+                      required={!!selectedPeriod?.tracks?.length}
+                      value={form.track_id}
+                      onChange={(event) =>
+                        setForm({ ...form, track_id: event.target.value })
+                      }
+                    >
+                      <option value="">Pilih jalur</option>
+                      {(selectedPeriod?.tracks || []).map((row: Row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.name} · Rp
+                          {Number(row.cost).toLocaleString("id-ID")}
                         </option>
                       ))}
                     </select>

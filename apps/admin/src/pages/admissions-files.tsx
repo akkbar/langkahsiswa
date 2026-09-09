@@ -82,11 +82,13 @@ export function AdmissionsPage({
   const write = can(user, "admission.write");
   const state = useAction();
   const [periods, setPeriods] = useState<Row[]>([]);
+  const [tracks, setTracks] = useState<Row[]>([]);
   const [applications, setApplications] = useState<Row[]>([]);
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState("");
   const [showPeriod, setShowPeriod] = useState(false);
   const [showApplicant, setShowApplicant] = useState(false);
+  const [showTrack, setShowTrack] = useState(false);
   const [period, setPeriod] = useState({
     school_id: "",
     academic_year_id: "",
@@ -97,6 +99,7 @@ export function AdmissionsPage({
   });
   const [applicant, setApplicant] = useState({
     period_id: "",
+    track_id: "",
     target_grade_level_id: "",
     name: "",
     email: "",
@@ -106,6 +109,13 @@ export function AdmissionsPage({
     gender: "",
     guardian_name: "",
     guardian_phone: "",
+  });
+  const [track, setTrack] = useState({
+    period_id: "",
+    name: "Internal 1",
+    code: "INTERNAL-1",
+    cost: "0",
+    capacity: "",
   });
   const [review, setReview] = useState({
     stage: "DOCUMENT",
@@ -118,13 +128,15 @@ export function AdmissionsPage({
   const [admissionDocumentType, setAdmissionDocumentType] =
     useState("AKTA_LAHIR");
   async function load() {
-    const [periodResult, applicationResult] = await Promise.all([
+    const [periodResult, trackResult, applicationResult] = await Promise.all([
       api("admission-periods"),
+      api("admission-tracks"),
       api(
         `admissions/applications?limit=100${filter ? `&status=${filter}` : ""}`,
       ),
     ]);
     setPeriods(periodResult.data);
+    setTracks(trackResult.data);
     setApplications(applicationResult.data);
   }
   useEffect(() => {
@@ -165,6 +177,9 @@ export function AdmissionsPage({
             ))}
           </select>
         </label>
+        {write && (
+          <button onClick={() => setShowTrack(!showTrack)}>Jalur baru</button>
+        )}
         {write && (
           <button onClick={() => setShowPeriod(!showPeriod)}>
             Periode baru
@@ -282,6 +297,90 @@ export function AdmissionsPage({
           </button>
         </form>
       )}
+      {showTrack && (
+        <form
+          className="card padded stack-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void state.run(async () => {
+              await send("admission-tracks", {
+                ...track,
+                cost: Number(track.cost),
+                capacity: track.capacity ? Number(track.capacity) : null,
+              });
+              setShowTrack(false);
+              await load();
+            }, "Jalur dan biaya PPDB berhasil dibuat.");
+          }}
+        >
+          <h2>Jalur PPDB baru</h2>
+          <div className="form-grid">
+            <label>
+              Periode
+              <select
+                required
+                value={track.period_id}
+                onChange={(event) =>
+                  setTrack({ ...track, period_id: event.target.value })
+                }
+              >
+                <option value="">Pilih periode</option>
+                {periods.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Nama jalur
+              <input
+                required
+                value={track.name}
+                onChange={(event) =>
+                  setTrack({ ...track, name: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Kode
+              <input
+                required
+                value={track.code}
+                onChange={(event) =>
+                  setTrack({ ...track, code: event.target.value.toUpperCase() })
+                }
+              />
+            </label>
+            <label>
+              Biaya
+              <input
+                type="number"
+                min="0"
+                required
+                value={track.cost}
+                onChange={(event) =>
+                  setTrack({ ...track, cost: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Kuota jalur
+              <input
+                type="number"
+                min="1"
+                value={track.capacity}
+                onChange={(event) =>
+                  setTrack({ ...track, capacity: event.target.value })
+                }
+              />
+            </label>
+          </div>
+          <button className="primary" disabled={state.busy}>
+            Simpan jalur
+          </button>
+        </form>
+      )}
       {showApplicant && (
         <form
           className="card padded stack-form"
@@ -290,6 +389,7 @@ export function AdmissionsPage({
             void state.run(async () => {
               await send("admissions/applications", {
                 ...applicant,
+                track_id: applicant.track_id || null,
                 email: applicant.email || null,
                 phone: applicant.phone || null,
                 address: applicant.address || null,
@@ -312,6 +412,7 @@ export function AdmissionsPage({
                   setApplicant({
                     ...applicant,
                     period_id: e.target.value,
+                    track_id: "",
                     target_grade_level_id: "",
                   })
                 }
@@ -322,6 +423,27 @@ export function AdmissionsPage({
                     {String(row.name)}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label>
+              Jalur PPDB
+              <select
+                value={applicant.track_id}
+                required={tracks.some(
+                  (row) => row.period_id === applicant.period_id,
+                )}
+                onChange={(event) =>
+                  setApplicant({ ...applicant, track_id: event.target.value })
+                }
+              >
+                <option value="">Pilih jalur</option>
+                {tracks
+                  .filter((row) => row.period_id === applicant.period_id)
+                  .map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.name} · Rp{Number(row.cost).toLocaleString("id-ID")}
+                    </option>
+                  ))}
               </select>
             </label>
             <label>

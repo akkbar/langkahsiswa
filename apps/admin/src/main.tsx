@@ -35,7 +35,49 @@ import {
   SecurityPage,
 } from "./pages/operations";
 import { DashboardPage, SitesPage } from "./pages/dashboard";
-const homeRoute = (_user: Actor) => "dashboard";
+import { FamilyPage } from "./pages/family";
+const homeRoute = (user: Actor) =>
+  user.roles.includes("PARENT")
+    ? "family"
+    : user.roles.includes("STUDENT")
+      ? "portal"
+      : "dashboard";
+function SchoolTeamPage({
+  user,
+  catalog,
+  refresh,
+}: {
+  user: Actor;
+  catalog: Catalog;
+  refresh: () => Promise<void>;
+}) {
+  const [tab, setTab] = useState<"teachers" | "staff">("teachers");
+  return (
+    <>
+      <div className="tabs school-team-tabs" aria-label="Guru dan Staff">
+        <button
+          className={tab === "teachers" ? "primary" : ""}
+          onClick={() => setTab("teachers")}
+        >
+          Guru
+        </button>
+        <button
+          className={tab === "staff" ? "primary" : ""}
+          onClick={() => setTab("staff")}
+        >
+          Staff
+        </button>
+      </div>
+      <ResourcePage
+        key={tab}
+        resource={tab}
+        user={user}
+        catalog={catalog}
+        refresh={refresh}
+      />
+    </>
+  );
+}
 function Workspace({
   user,
   onLogout,
@@ -50,7 +92,26 @@ function Workspace({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [schoolDataOpen, setSchoolDataOpen] = useState(() =>
+    ["sites", "school-team", "subjects", "grade-levels", "classes"].includes(
+      location.hash.slice(1),
+    ),
+  );
+  const [settingsOpen, setSettingsOpen] = useState(() =>
+    ["security", "users"].includes(location.hash.slice(1)),
+  );
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [accountDetailOpen, setAccountDetailOpen] = useState(false);
   const [sites, setSites] = useState<SiteSummary[]>([]);
+  async function logout() {
+    try {
+      await send("auth/logout", {});
+      setToken("");
+      onLogout();
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
   async function loadSites() {
     if (!can(user, "site.read")) return;
     const result = await api<{ data: SiteSummary[] }>("sites");
@@ -83,12 +144,37 @@ function Workspace({
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
     const change = () => {
-      setRoute(location.hash.slice(1));
+      const nextRoute = location.hash.slice(1);
+      setRoute(nextRoute);
+      if (
+        [
+          "sites",
+          "school-team",
+          "subjects",
+          "grade-levels",
+          "classes",
+        ].includes(nextRoute)
+      )
+        setSchoolDataOpen(true);
+      if (["security", "users"].includes(nextRoute)) setSettingsOpen(true);
       setMobileOpen(false);
     };
     window.addEventListener("hashchange", change);
     return () => window.removeEventListener("hashchange", change);
   }, [user.id]);
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const close = () => setAccountMenuOpen(false);
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [accountMenuOpen]);
   const extra = [
     {
       key: "attendance",
@@ -110,8 +196,8 @@ function Workspace({
     },
     {
       key: "users",
-      title: "Akun Pengguna",
-      group: "Administrasi",
+      title: "Permission dan Role Setting",
+      group: "Pengaturan",
       permission: "user.write",
     },
     {
@@ -122,15 +208,34 @@ function Workspace({
     },
   ];
   const links = [
-    ...Object.entries(resources).map(([key, r]) => ({
-      key,
-      title: r.title,
-      group: r.group,
-      permission: `${r.permission}.read`,
-    })),
+    ...Object.entries(resources)
+      .filter(([key]) => !["teachers", "staff"].includes(key))
+      .map(([key, r]) => ({
+        key,
+        title: r.title,
+        group: r.group,
+        permission: `${r.permission}.read`,
+      })),
     ...extra,
   ].filter((r) => can(user, r.permission));
+  if (can(user, "people.read"))
+    links.push({
+      key: "school-team",
+      title: "Guru dan Staff",
+      group: "Data Sekolah",
+      permission: "",
+    });
   links.push(
+    ...(user.roles.includes("PARENT")
+      ? [
+          {
+            key: "family",
+            title: "Keluarga & PPDB",
+            group: "Utama",
+            permission: "",
+          },
+        ]
+      : []),
     {
       key: "portal",
       title: "Ringkasan Siswa",
@@ -222,7 +327,7 @@ function Workspace({
     links.push({
       key: "security",
       title: "Audit & Keamanan",
-      group: "Administrasi",
+      group: "Pengaturan",
       permission: "",
     });
   if (can(user, "site.read"))
@@ -239,22 +344,22 @@ function Workspace({
     permission: "",
   });
   const dataKeys = new Set([
+    "sites",
+    "school-team",
+    "subjects",
+    "grade-levels",
+    "classes",
+  ]);
+  const administrationKeys = new Set([
     "schools",
     "academic-years",
     "semesters",
-    "grade-levels",
-    "classes",
-    "subjects",
     "students",
     "parents",
-    "teachers",
-    "staff",
     "student-guardians",
-    "users",
     "settings",
-    "security",
-    "sites",
   ]);
+  const settingsKeys = new Set(["security", "users"]);
   const academicKeys = new Set([
     "teacher-subjects",
     "class-subjects",
@@ -268,8 +373,10 @@ function Workspace({
   ]);
   for (const link of links) {
     if (link.key === "dashboard") link.group = "Dashboard";
-    else if (link.key === "portal") link.group = "Utama";
+    else if (["portal", "family"].includes(link.key)) link.group = "Utama";
     else if (dataKeys.has(link.key)) link.group = "Data Sekolah";
+    else if (settingsKeys.has(link.key)) link.group = "Pengaturan";
+    else if (administrationKeys.has(link.key)) link.group = "Administrasi";
     else if (academicKeys.has(link.key)) link.group = "Akademik";
     else if (["billing", "wallet", "pos"].includes(link.key))
       link.group = "Keuangan";
@@ -287,13 +394,29 @@ function Workspace({
     "Operasional",
     "Komunikasi",
     "Publikasi & PPDB",
+    "Administrasi",
+    "Pengaturan",
     "Data Sekolah",
   ];
   const groups = groupOrder.filter((group) =>
     links.some((link) => link.group === group),
   );
   const allowed = links.some((l) => l.key === route);
-  const title = links.find((l) => l.key === route)?.title || "LangkahSiswa";
+  const dataSchoolOrder = [
+    "sites",
+    "school-team",
+    "subjects",
+    "grade-levels",
+    "classes",
+  ];
+  const settingsOrder = ["security", "users"];
+  const activeSchool = catalog.schools?.[0];
+  const schoolName = String(
+    activeSchool?.name || user.tenant_name || "Sekolah Anda",
+  );
+  const schoolAddress = String(
+    activeSchool?.address || "Alamat sekolah belum diatur",
+  );
   return (
     <div className="workspace">
       <aside className={mobileOpen ? "sidebar open" : "sidebar"}>
@@ -303,7 +426,6 @@ function Workspace({
         <div className="school-pill">
           <span className="school-avatar">▥</span>
           <div>
-            <strong>{user.organization_name || "Yayasan Anda"}</strong>
             {sites.length > 1 ? (
               <select
                 className="site-switcher"
@@ -318,34 +440,159 @@ function Workspace({
                 ))}
               </select>
             ) : (
-              <span>{user.tenant_name || "Ruang kerja sekolah"}</span>
+              <strong>{schoolName}</strong>
             )}
+            <span title={schoolAddress}>{schoolAddress}</span>
           </div>
         </div>
         <nav aria-label="Navigasi utama">
-          {groups.map((group) => (
-            <div className="nav-group" key={group}>
-              <span className="nav-heading">{group}</span>
-              {links
-                .filter((l) => l.group === group)
-                .map((l) => (
-                  <a
-                    className={route === l.key ? "active" : ""}
-                    key={l.key}
-                    href={`#${l.key}`}
-                    aria-current={route === l.key ? "page" : undefined}
-                  >
-                    {l.title}
-                    {route === l.key && <span>›</span>}
-                  </a>
-                ))}
-            </div>
-          ))}
+          {groups.map((group) => {
+            const groupLinks = links
+              .filter((link) => link.group === group)
+              .sort((a, b) =>
+                group === "Data Sekolah"
+                  ? dataSchoolOrder.indexOf(a.key) -
+                    dataSchoolOrder.indexOf(b.key)
+                  : group === "Pengaturan"
+                    ? settingsOrder.indexOf(a.key) -
+                      settingsOrder.indexOf(b.key)
+                    : 0,
+              );
+            const items = groupLinks.map((link) => (
+              <a
+                className={route === link.key ? "active" : ""}
+                key={link.key}
+                href={`#${link.key}`}
+                aria-current={route === link.key ? "page" : undefined}
+              >
+                {link.title}
+                {route === link.key && <span>›</span>}
+              </a>
+            ));
+            return (
+              <div className="nav-group" key={group}>
+                {group === "Data Sekolah" ? (
+                  <>
+                    <button
+                      className={`nav-group-toggle ${dataKeys.has(route) ? "current" : ""}`}
+                      aria-expanded={schoolDataOpen}
+                      onClick={() => setSchoolDataOpen(!schoolDataOpen)}
+                    >
+                      <span>Data Sekolah</span>
+                      <span aria-hidden="true">
+                        {schoolDataOpen ? "−" : "+"}
+                      </span>
+                    </button>
+                    {schoolDataOpen && (
+                      <div className="nav-submenu">{items}</div>
+                    )}
+                  </>
+                ) : group === "Pengaturan" ? (
+                  <>
+                    <button
+                      className={`nav-group-toggle ${settingsKeys.has(route) ? "current" : ""}`}
+                      aria-expanded={settingsOpen}
+                      onClick={() => setSettingsOpen(!settingsOpen)}
+                    >
+                      <span>Pengaturan</span>
+                      <span aria-hidden="true">{settingsOpen ? "−" : "+"}</span>
+                    </button>
+                    {settingsOpen && <div className="nav-submenu">{items}</div>}
+                  </>
+                ) : (
+                  <>
+                    <span className="nav-heading">{group}</span>
+                    {items}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </nav>
         <div className="sidebar-footer">
-          <span className="badge">V1.0 · School Platform</span>
+          {accountMenuOpen && (
+            <div className="account-popover" role="menu">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  setAccountDetailOpen(true);
+                }}
+              >
+                <span aria-hidden="true">◎</span> Akun Saya
+              </button>
+              <ThemeToggle menuItem />
+              <button
+                className="sidebar-signout"
+                role="menuitem"
+                onClick={() => void logout()}
+              >
+                <span aria-hidden="true">↪</span> Keluar
+              </button>
+            </div>
+          )}
+          <button
+            className="sidebar-account account-trigger"
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            onClick={(event) => {
+              event.stopPropagation();
+              setAccountMenuOpen(!accountMenuOpen);
+            }}
+          >
+            <span className="sidebar-user-avatar" aria-hidden="true">
+              {user.name.slice(0, 1).toUpperCase()}
+            </span>
+            <div className="sidebar-account-detail">
+              <strong title={user.name}>{user.name}</strong>
+            </div>
+            <span className="account-chevron" aria-hidden="true">
+              ⌃
+            </span>
+          </button>
         </div>
       </aside>
+      {accountDetailOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal account-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="account-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <span className="eyebrow">AKUN SAYA</span>
+                <h2 id="account-title">{user.name}</h2>
+              </div>
+              <button
+                aria-label="Tutup detail akun"
+                onClick={() => setAccountDetailOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <dl className="detail-list">
+              <div>
+                <dt>Email</dt>
+                <dd>{user.email}</dd>
+              </div>
+              <div>
+                <dt>Peran</dt>
+                <dd>{user.roles.join(" · ")}</dd>
+              </div>
+              <div>
+                <dt>Yayasan</dt>
+                <dd>{user.organization_name || "—"}</dd>
+              </div>
+              <div>
+                <dt>Lokasi aktif</dt>
+                <dd>{user.tenant_name || "—"}</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      )}
       {mobileOpen && (
         <button
           className="sidebar-backdrop"
@@ -354,41 +601,14 @@ function Workspace({
         />
       )}
       <div className="main-shell">
-        <header className="topbar">
-          <div>
-            <button
-              className="menu-toggle"
-              aria-label="Buka menu"
-              aria-expanded={mobileOpen}
-              onClick={() => setMobileOpen(!mobileOpen)}
-            >
-              ☰
-            </button>
-            <span className="muted">Sekolah</span>
-            <span className="separator">/</span>
-            <strong>{title}</strong>
-          </div>
-          <div className="user-menu">
-            <ThemeToggle />
-            <div>
-              <strong>{user.name}</strong>
-              <span className="small muted">{user.roles.join(" · ")}</span>
-            </div>
-            <button
-              onClick={async () => {
-                try {
-                  await send("auth/logout", {});
-                  setToken("");
-                  onLogout();
-                } catch (e) {
-                  setError((e as Error).message);
-                }
-              }}
-            >
-              Keluar
-            </button>
-          </div>
-        </header>
+        <button
+          className="menu-toggle"
+          aria-label="Buka menu"
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen(!mobileOpen)}
+        >
+          ☰
+        </button>
         <main className="content">
           <ErrorBox error={error} />
           {error && (
@@ -417,6 +637,10 @@ function Workspace({
               reload={loadSites}
               switchSite={switchSite}
             />
+          ) : route === "family" ? (
+            <FamilyPage />
+          ) : route === "school-team" ? (
+            <SchoolTeamPage user={user} catalog={catalog} refresh={refresh} />
           ) : resources[route] ? (
             <ResourcePage
               key={route}

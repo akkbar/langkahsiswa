@@ -38,6 +38,7 @@ Implementasi menggunakan migrasi SQL versioned dan `pg` untuk PostgreSQL.
 Panduan modul: [Keuangan/POS](docs/FINANCE.md),
 [Flutter dan Firebase](docs/MOBILE_NOTIFICATIONS.md),
 [login Google](docs/GOOGLE_LOGIN.md),
+[akun, multi-lokasi, dan PPDB keluarga](docs/ACCOUNT_LEVELS_PPDB.md),
 [PPDB/manajemen berkas](docs/ADMISSIONS_FILES.md),
 [website builder](docs/WEBSITE_BUILDER.md),
 [operasional dan keamanan](docs/OPERATIONS_SECURITY.md), serta

@@ -4,6 +4,9 @@ export const roles = [
   "PRINCIPAL",
   "TEACHER",
   "FINANCE",
+  "STAFF",
+  "FOUNDATION_STAFF",
+  "FOUNDATION_HEAD",
   "PARENT",
   "STUDENT",
 ] as const;
@@ -20,6 +23,7 @@ export interface Actor {
   id: string;
   tenant_id: string;
   account_id: string;
+  account_level: "OPERATIONAL" | "FAMILY";
   name: string;
   email: string;
   tenant_name: string;

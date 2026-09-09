@@ -26,8 +26,9 @@ export function UsersPage({
     name: "",
     email: "",
     password: "",
-    roles: ["TEACHER"],
+    roles: ["STAFF"],
   });
+  const [level, setLevel] = useState<"OPERATIONAL" | "FAMILY">("OPERATIONAL");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -35,11 +36,11 @@ export function UsersPage({
     <>
       <div className="page-title">
         <div>
-          <span className="eyebrow">AKSES SEKOLAH</span>
-          <h1>Akun pengguna</h1>
+          <span className="eyebrow">PENGATURAN AKSES</span>
+          <h1>Permission dan Role Setting</h1>
           <p className="muted">
-            Setelah membuat akun guru atau wali, hubungkan pada data orang yang
-            sesuai.
+            Atur level akun dan role awal. Permission pengguna mengikuti role
+            yang dipilih.
           </p>
         </div>
       </div>
@@ -56,7 +57,7 @@ export function UsersPage({
             await send("users", form);
             await refresh();
             setMessage("Akun dibuat.");
-            setForm({ name: "", email: "", password: "", roles: ["TEACHER"] });
+            setForm({ name: "", email: "", password: "", roles: ["STAFF"] });
           } catch (e) {
             setError((e as Error).message);
           } finally {
@@ -94,15 +95,40 @@ export function UsersPage({
             />
           </label>
           <fieldset>
-            <legend>Peran</legend>
-            {[
-              "SCHOOL_ADMIN",
-              "PRINCIPAL",
-              "TEACHER",
-              "FINANCE",
-              "PARENT",
-              "STUDENT",
-            ].map((role) => (
+            <legend>Level akun</legend>
+            {(["OPERATIONAL", "FAMILY"] as const).map((value) => (
+              <label className="check" key={value}>
+                <input
+                  type="radio"
+                  name="account-level"
+                  checked={level === value}
+                  onChange={() => {
+                    setLevel(value);
+                    setForm({
+                      ...form,
+                      roles: [value === "OPERATIONAL" ? "STAFF" : "PARENT"],
+                    });
+                  }}
+                />
+                {value === "OPERATIONAL" ? "Operational" : "Siswa & wali"}
+              </label>
+            ))}
+          </fieldset>
+          <fieldset>
+            <legend>Peran dan permission awal</legend>
+            {(level === "OPERATIONAL"
+              ? [
+                  ["STAFF", "Staff"],
+                  ["TEACHER", "Guru"],
+                  ["PRINCIPAL", "Kepala Sekolah"],
+                  ["FOUNDATION_STAFF", "Staff Yayasan"],
+                  ["FOUNDATION_HEAD", "Kepala Yayasan"],
+                ]
+              : [
+                  ["PARENT", "Orang Tua / Wali"],
+                  ["STUDENT", "Siswa"],
+                ]
+            ).map(([role, title]) => (
               <label className="check" key={role}>
                 <input
                   type="checkbox"
@@ -116,7 +142,7 @@ export function UsersPage({
                     })
                   }
                 />
-                {role}
+                {title}
               </label>
             ))}
           </fieldset>
@@ -132,6 +158,8 @@ export function UsersPage({
               <tr>
                 <th>Nama</th>
                 <th>Email</th>
+                <th>Level</th>
+                <th>Peran</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -140,6 +168,12 @@ export function UsersPage({
                 <tr key={u.id}>
                   <td>{String(u.name)}</td>
                   <td>{String(u.email)}</td>
+                  <td>
+                    {u.account_level === "FAMILY"
+                      ? "Siswa & wali"
+                      : "Operational"}
+                  </td>
+                  <td>{Array.isArray(u.roles) ? u.roles.join(", ") : "—"}</td>
                   <td>{u.active ? "Aktif" : "Nonaktif"}</td>
                 </tr>
               ))}

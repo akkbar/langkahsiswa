@@ -6,9 +6,7 @@ async function login(page: Page, email = "admin@demo.langkahsiswa.id") {
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Kata sandi", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Masuk ke LangkahSiswa" }).click();
-  await expect(
-    page.getByRole("button", { name: "Keluar", exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".account-trigger")).toBeVisible();
 }
 
 test("light and dark themes persist on desktop and mobile", async ({
@@ -23,9 +21,13 @@ test("light and dark themes persist on desktop and mobile", async ({
   });
   await page.getByRole("button", { name: "Aktifkan mode gelap" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.locator(".login-story")).toHaveCSS(
+  await expect(page.locator("body")).toHaveCSS(
     "background-color",
-    "rgb(7, 9, 13)",
+    "rgb(3, 5, 8)",
+  );
+  await expect(page.locator(".login-story")).toHaveCSS(
+    "background-image",
+    /linear-gradient/,
   );
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -34,9 +36,36 @@ test("light and dark themes persist on desktop and mobile", async ({
     fullPage: true,
   });
   await login(page);
+  await expect(page.locator(".nav-submenu")).toHaveCount(0);
+  await page.getByRole("button", { name: "Data Sekolah" }).click();
+  await expect(page.locator(".nav-submenu a")).toHaveText([
+    "Lokasi Sekolah",
+    "Guru dan Staff",
+    "Mata Pelajaran",
+    "Tingkat Kelas",
+    "Kelas",
+  ]);
+  await page.getByRole("button", { name: "Data Sekolah" }).click();
+  await page.getByRole("button", { name: "Pengaturan" }).click();
+  await expect(
+    page
+      .locator(".nav-group")
+      .filter({ hasText: "Pengaturan" })
+      .locator(".nav-submenu a"),
+  ).toHaveText(["Audit & Keamanan", "Permission dan Role Setting"]);
+  await page.getByRole("button", { name: "Pengaturan" }).click();
+  await page.getByRole("link", { name: "Siswa", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Siswa", exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".nav-group a.active")).toHaveCSS(
+    "background-color",
+    "rgb(0, 74, 173)",
+  );
+  await expect(page.locator(".nav-group a.active")).toHaveCSS(
+    "color",
+    "rgb(255, 255, 255)",
+  );
   await page.screenshot({
     path: "test-results/students-dark.png",
     fullPage: true,
@@ -51,8 +80,26 @@ test("light and dark themes persist on desktop and mobile", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("button", { name: "Aktifkan mode terang" }).click();
+  await page.getByRole("button", { name: "Buka menu" }).click();
+  await expect(page.locator(".sidebar-account")).toBeVisible();
+  await page.locator(".account-trigger").click();
+  await expect(page.getByRole("menuitem", { name: "Akun Saya" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Keluar" })).toBeVisible();
+  await page.screenshot({
+    path: "test-results/sidebar-account-dark-mobile.png",
+    fullPage: true,
+  });
+  await page.getByRole("menuitem", { name: "Akun Saya" }).click();
+  await expect(
+    page.getByRole("dialog", { name: /Administrator Sekolah/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Tutup detail akun" }).click();
+  await page.locator(".account-trigger").click();
+  await page.getByRole("menuitem", { name: "Aktifkan mode terang" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page
+    .getByRole("button", { name: "Tutup menu" })
+    .click({ position: { x: 300, y: 20 } });
   await page.screenshot({
     path: "test-results/students-light-mobile.png",
     fullPage: true,
@@ -109,7 +156,7 @@ test("public PPDB flows into enrollment and managed file archive", async ({
   await page.getByRole("button", { name: "Lihat periode" }).click();
   await page
     .getByRole("combobox", { name: "Periode", exact: true })
-    .selectOption({ index: 1 });
+    .selectOption(period.id);
   await page
     .getByRole("combobox", { name: "Tingkat tujuan", exact: true })
     .selectOption(grade.id);
@@ -196,7 +243,11 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
   const email = `parent-ui-${suffix}@example.test`;
   const auth = await (
     await request.post("/api/v1/auth/login", {
-      data: { tenant_slug: "demo", email: "admin@demo.langkahsiswa.id", password },
+      data: {
+        tenant_slug: "demo",
+        email: "admin@demo.langkahsiswa.id",
+        password,
+      },
     })
   ).json();
   async function create(path: string, data: unknown) {
@@ -261,7 +312,7 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
   try {
     await login(parent, email);
     await expect(
-      parent.getByRole("heading", { name: "Ringkasan siswa", exact: true }),
+      parent.getByRole("heading", { name: "Keluarga saya", exact: true }),
     ).toBeVisible();
     await expect(
       parent.getByRole("link", { name: "Kasir Kantin", exact: true }),
@@ -438,7 +489,8 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
     await expect(parent.locator(".metric").nth(1).locator("strong")).toHaveText(
       /12\.000/,
     );
-    await parent.getByRole("button", { name: "Aktifkan mode gelap" }).click();
+    await parent.locator(".account-trigger").click();
+    await parent.getByRole("menuitem", { name: "Aktifkan mode gelap" }).click();
     await parent.screenshot({
       path: "test-results/parent-wallet-dark.png",
       fullPage: true,
@@ -517,7 +569,11 @@ test("Google login handles first-time account linking with the current school co
 }) => {
   const auth = await (
     await request.post("/api/v1/auth/login", {
-      data: { tenant_slug: "demo", email: "admin@demo.langkahsiswa.id", password },
+      data: {
+        tenant_slug: "demo",
+        email: "admin@demo.langkahsiswa.id",
+        password,
+      },
     })
   ).json();
   await page.route("**/api/v1/auth/google/config", (route) =>
@@ -561,6 +617,7 @@ test("Google login handles first-time account linking with the current school co
   await page
     .getByRole("button", { name: "Tautkan akun Google", exact: true })
     .click();
+  await page.getByRole("link", { name: "Siswa", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Siswa", exact: true }),
   ).toBeVisible();

@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   CanActivate,
   Controller,
   ExecutionContext,
@@ -84,6 +85,46 @@ export const rolePermissions: Record<Role, string[]> = {
     "event.read",
     "notification.read",
     "file.read",
+    "site.read",
+  ],
+  STAFF: [
+    "school.read",
+    "student.read",
+    "student.create",
+    "student.update",
+    "people.read",
+    "people.write",
+    "user.write",
+    "admission.read",
+    "admission.write",
+    "event.read",
+    "notification.read",
+    "site.read",
+  ],
+  FOUNDATION_STAFF: [
+    "school.read",
+    "student.read",
+    "people.read",
+    "finance.read",
+    "report.read",
+    "event.read",
+    "admission.read",
+    "site.read",
+  ],
+  FOUNDATION_HEAD: [
+    "school.read",
+    "school.write",
+    "student.read",
+    "people.read",
+    "academic.read",
+    "finance.read",
+    "report.read",
+    "report.approve",
+    "event.read",
+    "admission.read",
+    "audit.read",
+    "site.read",
+    "site.write",
   ],
   PARENT: [
     "report.own",
@@ -91,6 +132,10 @@ export const rolePermissions: Record<Role, string[]> = {
     "notification.read",
     "boarding.own",
     "library.own",
+    "site.read",
+    "family.read",
+    "family.write",
+    "family.student.manage",
   ],
   STUDENT: [
     "report.own",
@@ -98,6 +143,8 @@ export const rolePermissions: Record<Role, string[]> = {
     "notification.read",
     "boarding.own",
     "library.own",
+    "site.read",
+    "family.read",
   ],
 };
 export function allow(actor: Actor, permission: string) {
@@ -154,10 +201,16 @@ export async function createTenant(
   ]);
   const account = (
     await sql.query(
-      "INSERT INTO accounts(name,email) VALUES($1,$2) ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id",
+      "INSERT INTO accounts(name,email,account_level) VALUES($1,$2,'OPERATIONAL') ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id,account_level",
       [input.admin_name, input.admin_email],
     )
   ).rows[0];
+  if (account.account_level !== "OPERATIONAL")
+    throw new BadRequestException("Email sudah digunakan oleh akun keluarga");
+  await sql.query(
+    "INSERT INTO operational_accounts(account_id,position) VALUES($1,'STAFF') ON CONFLICT DO NOTHING",
+    [account.id],
+  );
   const user = (
     await sql.query(
       "INSERT INTO users(tenant_id,account_id,name,email,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING id",
@@ -182,7 +235,7 @@ export class AuthService {
   async actor(userId: string, tenantId: string): Promise<Actor> {
     const user = (
       await this.db.query(
-        `SELECT u.id,u.tenant_id,u.account_id,u.name,u.email,
+        `SELECT u.id,u.tenant_id,u.account_id,a.account_level,u.name,u.email,
          t.name AS tenant_name,t.slug AS tenant_slug,
          o.id AS organization_id,o.name AS organization_name
          FROM users u
@@ -579,7 +632,11 @@ export class UsersController {
     allow(req.actor, "people.read");
     const data = (
       await this.db.query(
-        "SELECT id,tenant_id,name,email,active FROM users WHERE tenant_id=$1 ORDER BY name",
+        `SELECT u.id,u.tenant_id,u.name,u.email,u.active,a.account_level,
+         COALESCE(array_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL),'{}') AS roles
+         FROM users u JOIN accounts a ON a.id=u.account_id
+         LEFT JOIN user_roles ur ON ur.tenant_id=u.tenant_id AND ur.user_id=u.id
+         WHERE u.tenant_id=$1 GROUP BY u.id,a.account_level ORDER BY u.name`,
         [req.actor.tenant_id],
       )
     ).rows;
@@ -589,18 +646,51 @@ export class UsersController {
     allow(req.actor, "user.write");
     const input = userSchema.parse(body);
     return this.db.transaction(req.actor.tenant_id, async (sql) => {
-      const user = (
+      const familyRoles = input.roles.filter((role) =>
+        ["PARENT", "STUDENT"].includes(role),
+      );
+      if (familyRoles.length && familyRoles.length !== input.roles.length)
+        throw new BadRequestException(
+          "Role operational dan keluarga tidak dapat digabung dalam satu akun",
+        );
+      const accountLevel = familyRoles.length ? "FAMILY" : "OPERATIONAL";
+      const account = (
         await sql.query(
-          "INSERT INTO accounts(name,email) VALUES($1,$2) ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id",
-          [input.name, input.email],
+          "INSERT INTO accounts(name,email,account_level) VALUES($1,$2,$3) ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id,account_level",
+          [input.name, input.email, accountLevel],
         )
       ).rows[0];
+      if (account.account_level !== accountLevel)
+        throw new BadRequestException(
+          "Email sudah terdaftar pada kategori akun yang berbeda",
+        );
+      if (accountLevel === "FAMILY")
+        await sql.query(
+          "INSERT INTO family_accounts(account_id,created_via) VALUES($1,'SCHOOL_ADMIN') ON CONFLICT DO NOTHING",
+          [account.id],
+        );
+      else
+        await sql.query(
+          "INSERT INTO operational_accounts(account_id,position) VALUES($1,$2) ON CONFLICT DO NOTHING",
+          [
+            account.id,
+            input.roles.includes("FOUNDATION_HEAD")
+              ? "FOUNDATION_HEAD"
+              : input.roles.includes("FOUNDATION_STAFF")
+                ? "FOUNDATION_STAFF"
+                : input.roles.includes("PRINCIPAL")
+                  ? "PRINCIPAL"
+                  : input.roles.includes("TEACHER")
+                    ? "TEACHER"
+                    : "STAFF",
+          ],
+        );
       const membership = (
         await sql.query(
           "INSERT INTO users(tenant_id,account_id,name,email,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING id,tenant_id,account_id,name,email",
           [
             req.actor.tenant_id,
-            user.id,
+            account.id,
             input.name,
             input.email,
             await hash(input.password, 12),

@@ -53,7 +53,8 @@ function minio() {
     forcePathStyle: true,
     credentials: {
       accessKeyId: process.env.MINIO_ACCESS_KEY || "langkahsiswa",
-      secretAccessKey: process.env.MINIO_SECRET_KEY || "langkahsiswa_dev_secret",
+      secretAccessKey:
+        process.env.MINIO_SECRET_KEY || "langkahsiswa_dev_secret",
     },
   });
   return minioClient;

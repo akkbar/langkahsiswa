@@ -75,7 +75,9 @@ export class DomainsController {
   @Post() async create(@Req() req: AuthRequest, @Body() body: unknown) {
     allow(req.actor, "domain.write");
     const input = z.object({ domain: domainSchema }).strict().parse(body);
-    const reserved = (process.env.BASE_DOMAIN || "langkahsiswa.id").toLowerCase();
+    const reserved = (
+      process.env.BASE_DOMAIN || "langkahsiswa.id"
+    ).toLowerCase();
     if (input.domain === reserved)
       throw new BadRequestException(
         "Domain utama platform tidak dapat digunakan",

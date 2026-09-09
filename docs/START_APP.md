@@ -58,6 +58,7 @@ lokal:
 
 ```dotenv
 DATABASE_URL=postgresql://langkahsiswa:langkahsiswa_dev@localhost:5432/langkahsiswa
+DATABASE_URL_DOCKER=postgresql://langkahsiswa:langkahsiswa_dev@postgres:5432/langkahsiswa
 REDIS_URL=redis://localhost:6379
 STORAGE_DRIVER=filesystem
 STORAGE_PATH=.local/uploads
@@ -127,6 +128,13 @@ Password     : LangkahSiswa!2026
 Jika nilai `SEED_ADMIN_EMAIL` atau `SEED_ADMIN_PASSWORD` di `.env` diubah sebelum
 seed pertama, gunakan nilai tersebut. Setelah masuk, semua modul tersedia dari
 menu admin sesuai role akun.
+
+Untuk mencoba alur wali, pilih **Daftar sebagai orang tua** pada halaman login.
+Gunakan kode sekolah `demo` dan email yang belum terdaftar. Bila wali belum
+memiliki siswa, aplikasi langsung membuka **Keluarga & PPDB**. Form hanya muncul
+saat staf telah membuka periode PPDB; jalur dan biayanya dibuat dari menu
+**PPDB** pada akun operasional. Setelah pendaftaran dienroll, wali dapat membuat
+akun anak dengan email berbeda dari halaman keluarga.
 
 Website publik menggunakan alamat berikut setelah halaman dibuat dan diterbitkan
 dari menu **Website**:

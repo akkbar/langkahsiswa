@@ -5,6 +5,13 @@ ditunda sesuai keputusan proyek dan memiliki catatan implementasi terpisah.
 Phase 0–9 diperiksa kembali dengan pengujian regresi database/HTTP.
 Panduan menjalankan dan batas implementasi: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
 
+Pembaruan fondasi setelah phase 24 juga selesai: brand **LangkahSiswa**, menu
+operasional yang dikelompokkan dengan Dashboard di atas dan Data Sekolah di
+bawah, yayasan multi-lokasi, pemisahan akun operasional/keluarga, template role
+berbasis permission, jalur PPDB custom beserta biaya, registrasi wali lebih dulu,
+dan pembuatan akun anak setelah enrollment. Detail alur ada di
+[docs/ACCOUNT_LEVELS_PPDB.md](docs/ACCOUNT_LEVELS_PPDB.md).
+
 | Phase | Status     | Hasil                                                                                                                   |
 | ----- | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 0     | Selesai    | Monorepo npm, NestJS, React, Docker PostgreSQL/Redis/MinIO, health nyata                                                |
@@ -35,7 +42,7 @@ Panduan menjalankan dan batas implementasi: [docs/IMPLEMENTATION.md](docs/IMPLEM
 
 Verifikasi mencakup build TypeScript/React, unit test formula/validasi,
 integration test HTTP memakai PostgreSQL terisolasi, pengujian Chromium admin,
-dan pengujian Flutter. Hasil: 12 unit test API, 43 integration test, 5 pengujian
+dan pengujian Flutter. Hasil: 12 unit test API, 44 integration test, 5 pengujian
 web, dan 12 test Flutter lulus; build API/admin/website dan APK Android debug berhasil.
 Lihat [catatan verifikasi](docs/VERIFICATION.md) untuk perintah dan batas pengujian.
 

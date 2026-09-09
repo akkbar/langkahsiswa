@@ -332,6 +332,132 @@ test("Phase 17–18: PPDB enrollment and tenant-isolated files", async () => {
       generic.id,
     );
     await post(`files/${generic.id}/restore`, {});
+    const familyPeriod = await post("admission-periods", {
+      school_id: school.id,
+      academic_year_id: year.id,
+      name: "Gelombang Keluarga",
+      starts_on: "2026-01-01",
+      ends_on: "2026-12-31",
+      capacity: 10,
+    });
+    const track = await post("admission-tracks", {
+      period_id: familyPeriod.id,
+      name: "Internal 1",
+      code: "INTERNAL-1",
+      cost: 250000,
+      capacity: 5,
+    });
+    await request(
+      `admission-periods/${familyPeriod.id}/status`,
+      "PATCH",
+      { status: "OPEN" },
+      admin,
+    );
+    const familyAuth = await request(
+      "public/family/register",
+      "POST",
+      {
+        tenant_slug: "ppdb-test",
+        name: "Orang Tua Mandiri",
+        email: "self-parent@ppdb.test",
+        phone: "081299999999",
+        password: "Password!2026",
+      },
+      undefined,
+      201,
+    );
+    assert.equal(familyAuth.user.account_level, "FAMILY");
+    assert.deepEqual(familyAuth.user.roles, ["PARENT"]);
+    const firstOverview = await request(
+      "family/overview",
+      "GET",
+      undefined,
+      familyAuth.access_token,
+    );
+    assert.equal(firstOverview.needs_ppdb, true);
+    assert.equal(
+      firstOverview.periods.find((row: any) => row.id === familyPeriod.id)
+        .tracks[0].cost,
+      250000,
+    );
+    const familyApplication = await request(
+      "family/applications",
+      "POST",
+      {
+        period_id: familyPeriod.id,
+        track_id: track.id,
+        target_grade_level_id: grade.id,
+        name: "Anak Mandiri",
+        email: "candidate-child@ppdb.test",
+        phone: null,
+        address: "Bandung",
+        birth_date: "2013-05-05",
+        gender: "MALE",
+      },
+      familyAuth.access_token,
+      201,
+    );
+    const familyDocument = await request(
+      `family/applications/${familyApplication.id}/documents`,
+      "POST",
+      {
+        document_type: "AKTA_LAHIR",
+        file_name: "akta-anak.pdf",
+        mime_type: "application/pdf",
+        data_base64: pdf.toString("base64"),
+      },
+      familyAuth.access_token,
+      201,
+    );
+    const familyDocumentRow = (
+      await db.query(
+        "SELECT id FROM application_documents WHERE tenant_id=$1 AND file_id=$2",
+        [tenant.id, familyDocument.id],
+      )
+    ).rows[0];
+    await request(
+      `admissions/documents/${familyDocumentRow.id}`,
+      "PATCH",
+      { status: "VERIFIED", notes: "Lengkap" },
+      admin,
+    );
+    for (const stage of ["DOCUMENT", "TEST", "INTERVIEW"])
+      await post(`admissions/applications/${familyApplication.id}/reviews`, {
+        stage,
+        decision: "PASSED",
+        score: stage === "DOCUMENT" ? null : 90,
+        notes: "Lulus",
+      });
+    const familyStudent = await post(
+      `admissions/applications/${familyApplication.id}/enroll`,
+      { nis: "PPDB-FAMILY-1", class_id: null },
+    );
+    const enrolledOverview = await request(
+      "family/overview",
+      "GET",
+      undefined,
+      familyAuth.access_token,
+    );
+    assert.equal(enrolledOverview.needs_ppdb, false);
+    assert.equal(enrolledOverview.students[0].account_ready, false);
+    const childAccount = await request(
+      `family/students/${familyStudent.id}/account`,
+      "POST",
+      { email: "child-login@ppdb.test", password: "Password!2026" },
+      familyAuth.access_token,
+      201,
+    );
+    assert.equal(childAccount.email, "child-login@ppdb.test");
+    await request(
+      `family/students/${familyStudent.id}/account`,
+      "POST",
+      { email: "second-child@ppdb.test", password: "Password!2026" },
+      familyAuth.access_token,
+      409,
+    );
+    const childAuth = await login("ppdb-test", "child-login@ppdb.test");
+    assert.equal(childAuth.user.account_level, "FAMILY");
+    assert.deepEqual(childAuth.user.roles, ["STUDENT"]);
     await post("users", {
       name: "Wali",
       email: "parent@ppdb.test",

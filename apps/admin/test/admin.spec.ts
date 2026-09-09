@@ -16,8 +16,11 @@ test("admin manages student data, edits schedules, and uses academic screens", a
   await page
     .getByLabel("Email", { exact: true })
     .fill("admin@demo.langkahsiswa.id");
-  await page.getByLabel("Kata sandi", { exact: true }).fill("LangkahSiswa!2026");
+  await page
+    .getByLabel("Kata sandi", { exact: true })
+    .fill("LangkahSiswa!2026");
   await page.getByRole("button", { name: "Masuk ke LangkahSiswa" }).click();
+  await page.getByRole("link", { name: "Siswa", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Siswa", exact: true }),
   ).toBeVisible();
@@ -154,7 +157,9 @@ test("admin manages student data, edits schedules, and uses academic screens", a
     path: "test-results/students-mobile.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Keluar", exact: true }).click();
+  await page.getByRole("button", { name: "Buka menu" }).click();
+  await page.locator(".account-trigger").click();
+  await page.getByRole("menuitem", { name: "Keluar", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Masuk ke sekolah Anda" }),
   ).toBeVisible();

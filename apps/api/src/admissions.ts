@@ -44,6 +44,7 @@ const periodInput = z
 const applicationInput = z
   .object({
     period_id: uuid,
+    track_id: uuid.nullable().optional(),
     target_grade_level_id: uuid,
     name: text,
     email: z.string().trim().email().max(200).nullable().optional(),
@@ -80,11 +81,12 @@ function admissionManager(req: AuthRequest) {
   allow(req.actor, "admission.write");
 }
 
-async function createApplication(
+export async function createApplication(
   sql: Sql,
   tenantId: string,
   input: z.infer<typeof applicationInput>,
   requireOpen: boolean,
+  familyAccountId: string | null = null,
 ) {
   const period = (
     await sql.query(
@@ -100,6 +102,29 @@ async function createApplication(
     throw new BadRequestException("Periode atau tingkat tujuan tidak sesuai");
   if (requireOpen && (period.status !== "OPEN" || !period.active_date))
     throw new ConflictException("Periode pendaftaran tidak sedang dibuka");
+  const tracks = (
+    await sql.query(
+      `SELECT tr.*,(SELECT count(*) FROM applications a
+       WHERE a.tenant_id=tr.tenant_id AND a.track_id=tr.id
+       AND a.status NOT IN ('REJECTED','WITHDRAWN')) AS applications
+       FROM admission_tracks tr WHERE tr.tenant_id=$1 AND tr.period_id=$2
+       AND tr.active ORDER BY tr.name FOR UPDATE`,
+      [tenantId, period.id],
+    )
+  ).rows;
+  const track = input.track_id
+    ? tracks.find((row) => row.id === input.track_id)
+    : null;
+  if (input.track_id && !track)
+    throw new BadRequestException("Jalur PPDB tidak sesuai periode");
+  if (requireOpen && tracks.length && !track)
+    throw new BadRequestException("Jalur PPDB wajib dipilih");
+  if (
+    track &&
+    track.capacity !== null &&
+    Number(track.applications) >= Number(track.capacity)
+  )
+    throw new ConflictException("Kuota jalur PPDB sudah penuh");
   const applicant = (
     await sql.query(
       `INSERT INTO applicants(tenant_id,name,email,phone,address,birth_date,gender,guardian_name,guardian_phone)
@@ -121,15 +146,17 @@ async function createApplication(
   const registration = `PPDB-${new Date().getUTCFullYear()}-${randomBytes(4).toString("hex").toUpperCase()}`;
   const application = (
     await sql.query(
-      `INSERT INTO applications(tenant_id,period_id,applicant_id,target_grade_level_id,registration_number,access_token_hash)
-       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+      `INSERT INTO applications(tenant_id,period_id,track_id,applicant_id,target_grade_level_id,registration_number,access_token_hash,family_account_id)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [
         tenantId,
         period.id,
+        track?.id || null,
         applicant.id,
         input.target_grade_level_id,
         registration,
         digest(accessToken),
+        familyAccountId,
       ],
     )
   ).rows[0];
@@ -144,6 +171,7 @@ export class PublicAdmissionsController {
     const rows = (
       await this.db.query(
         `SELECT p.id,p.name,p.starts_on,p.ends_on,p.capacity,y.name AS academic_year,
+         COALESCE((SELECT json_agg(json_build_object('id',tr.id,'name',tr.name,'code',tr.code,'cost',tr.cost,'capacity',tr.capacity) ORDER BY tr.name) FROM admission_tracks tr WHERE tr.tenant_id=p.tenant_id AND tr.period_id=p.id AND tr.active),'[]') AS tracks,
          json_agg(json_build_object('id',g.id,'name',g.name) ORDER BY g.level) AS grade_levels
          FROM admission_periods p JOIN tenants t ON t.id=p.tenant_id
          JOIN academic_years y ON y.tenant_id=p.tenant_id AND y.id=p.academic_year_id
@@ -281,6 +309,74 @@ export class AdmissionsController {
     };
   }
 
+  @Get("admission-tracks") async tracks(
+    @Req() req: AuthRequest,
+    @Query("period_id") periodId?: string,
+  ) {
+    allow(req.actor, "admission.read");
+    const parsed = periodId ? uuid.parse(periodId) : null;
+    return {
+      data: (
+        await this.db.query(
+          `SELECT tr.*,p.name AS period_name,
+           (SELECT count(*)::integer FROM applications a WHERE a.tenant_id=tr.tenant_id AND a.track_id=tr.id) AS applications
+           FROM admission_tracks tr JOIN admission_periods p
+           ON p.tenant_id=tr.tenant_id AND p.id=tr.period_id
+           WHERE tr.tenant_id=$1 AND ($2::uuid IS NULL OR tr.period_id=$2)
+           ORDER BY p.starts_on DESC,tr.name`,
+          [req.actor.tenant_id, parsed],
+        )
+      ).rows,
+    };
+  }
+
+  @Post("admission-tracks") async addTrack(
+    @Req() req: AuthRequest,
+    @Body() body: unknown,
+  ) {
+    admissionManager(req);
+    const input = z
+      .object({
+        period_id: uuid,
+        name: text,
+        code: z
+          .string()
+          .trim()
+          .min(1)
+          .max(30)
+          .transform((value) => value.toUpperCase()),
+        cost: z.number().min(0).max(1_000_000_000),
+        capacity: z
+          .number()
+          .int()
+          .positive()
+          .max(100000)
+          .nullable()
+          .default(null),
+      })
+      .strict()
+      .parse(body);
+    const row = (
+      await this.db.query(
+        `INSERT INTO admission_tracks(tenant_id,period_id,name,code,cost,capacity,created_by)
+         SELECT $1,$2,$3,$4,$5,$6,$7 WHERE EXISTS(
+          SELECT 1 FROM admission_periods WHERE tenant_id=$1 AND id=$2)
+         RETURNING *`,
+        [
+          req.actor.tenant_id,
+          input.period_id,
+          input.name,
+          input.code,
+          input.cost,
+          input.capacity,
+          req.actor.id,
+        ],
+      )
+    ).rows[0];
+    if (!row) throw new NotFoundException("Periode PPDB tidak ditemukan");
+    return row;
+  }
+
   @Post("admission-periods") async addPeriod(
     @Req() req: AuthRequest,
     @Body() body: unknown,
@@ -359,13 +455,14 @@ export class AdmissionsController {
       offset = (x.page - 1) * x.limit;
     const rows = (
       await this.db.query(
-        `SELECT a.*,i.name,i.email,i.phone,i.guardian_name,i.guardian_phone,p.name AS period_name,g.name AS grade_name,
+        `SELECT a.*,i.name,i.email,i.phone,i.guardian_name,i.guardian_phone,p.name AS period_name,g.name AS grade_name,tr.name AS track_name,tr.cost AS track_cost,
          count(*) OVER() AS _total,
          COALESCE((SELECT json_agg(json_build_object('id',d.id,'file_id',d.file_id,'document_type',d.document_type,'status',d.verification_status,'notes',d.notes) ORDER BY d.created_at) FROM application_documents d WHERE d.tenant_id=a.tenant_id AND d.application_id=a.id),'[]') AS documents,
          COALESCE((SELECT json_agg(json_build_object('stage',r.stage,'decision',r.decision,'score',r.score,'notes',r.notes,'reviewed_at',r.reviewed_at) ORDER BY r.reviewed_at) FROM application_reviews r WHERE r.tenant_id=a.tenant_id AND r.application_id=a.id),'[]') AS reviews
          FROM applications a JOIN applicants i ON i.tenant_id=a.tenant_id AND i.id=a.applicant_id
          JOIN admission_periods p ON p.tenant_id=a.tenant_id AND p.id=a.period_id
          JOIN grade_levels g ON g.tenant_id=a.tenant_id AND g.id=a.target_grade_level_id
+         LEFT JOIN admission_tracks tr ON tr.tenant_id=a.tenant_id AND tr.id=a.track_id
          WHERE a.tenant_id=$1 AND ($2='' OR a.status=$2) AND ($3='' OR i.name ILIKE '%'||$3||'%' OR a.registration_number ILIKE '%'||$3||'%')
          ORDER BY a.submitted_at DESC LIMIT $4 OFFSET $5`,
         [req.actor.tenant_id, x.status || "", x.search, x.limit, offset],
@@ -444,6 +541,23 @@ export class AdmissionsController {
           Number(capacity.accepted) >= Number(capacity.capacity)
         )
           throw new ConflictException("Kapasitas penerimaan sudah penuh");
+        if (app.track_id) {
+          const trackCapacity = (
+            await sql.query(
+              `SELECT tr.capacity,(SELECT count(*) FROM applications a
+               WHERE a.tenant_id=tr.tenant_id AND a.track_id=tr.id
+               AND a.status IN ('ACCEPTED','ENROLLED')) accepted
+               FROM admission_tracks tr WHERE tr.tenant_id=$1 AND tr.id=$2 FOR UPDATE`,
+              [req.actor.tenant_id, app.track_id],
+            )
+          ).rows[0];
+          if (
+            trackCapacity &&
+            trackCapacity.capacity !== null &&
+            Number(trackCapacity.accepted) >= Number(trackCapacity.capacity)
+          )
+            throw new ConflictException("Kuota penerimaan jalur sudah penuh");
+        }
       }
       const review = (
         await sql.query(
@@ -608,6 +722,22 @@ export class AdmissionsController {
           ],
         )
       ).rows[0];
+      if (app.family_account_id) {
+        const parent = (
+          await sql.query(
+            `SELECT p.id FROM parents p JOIN users u
+             ON u.tenant_id=p.tenant_id AND u.id=p.user_id
+             WHERE p.tenant_id=$1 AND u.account_id=$2 LIMIT 1`,
+            [req.actor.tenant_id, app.family_account_id],
+          )
+        ).rows[0];
+        if (parent)
+          await sql.query(
+            `INSERT INTO student_guardians(tenant_id,student_id,parent_id,relationship,is_primary)
+             VALUES($1,$2,$3,'GUARDIAN',true) ON CONFLICT DO NOTHING`,
+            [req.actor.tenant_id, student.id, parent.id],
+          );
+      }
       if (x.class_id)
         await sql.query(
           "INSERT INTO class_students(tenant_id,class_id,student_id,academic_year_id) VALUES($1,$2,$3,$4)",

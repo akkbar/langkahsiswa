@@ -467,6 +467,7 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
           token,
         );
         teacherAuth = await login("school-a", "teacher@a.test");
+        assert.equal(teacherAuth.user.account_level, "OPERATIONAL");
         await request(
           "students",
           "POST",
@@ -487,6 +488,24 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
           token,
         );
         parentAuth = await login("school-a", "parent@a.test");
+        assert.equal(parentAuth.user.account_level, "FAMILY");
+        await post(
+          "users",
+          {
+            name: "Kategori Campuran",
+            email: "mixed@a.test",
+            password: "Password!2026",
+            roles: ["STAFF", "PARENT"],
+          },
+          400,
+        );
+        await assert.rejects(
+          db.query(
+            "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'TEACHER')",
+            [tenantA.id, p.id],
+          ),
+          /family role requires FAMILY account|operational role requires OPERATIONAL account/,
+        );
         await post("users", {
           name: "Kepala",
           email: "principal@a.test",

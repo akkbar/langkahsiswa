@@ -51,4 +51,5 @@ SELECT role_id,permission_id FROM (VALUES
  ('PRINCIPAL','site.read'),('TEACHER','site.read'),('FINANCE','site.read'),
  ('PARENT','site.read'),('STUDENT','site.read')
 ) grant_rows(role_id,permission_id)
+JOIN roles r ON r.id=grant_rows.role_id
 ON CONFLICT DO NOTHING;

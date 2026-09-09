@@ -11,6 +11,7 @@ Rancangan lengkap tetap ada di README/PHASES.
 - [Billing, bukti transfer, dompet, POS, dan batas belanja wali](FINANCE.md).
 - [Event, notifikasi, Flutter, dan konfigurasi push Firebase](MOBILE_NOTIFICATIONS.md).
 - [Login Google dan penautan akun sekolah](GOOGLE_LOGIN.md).
+- [Akun operasional/keluarga, multi-lokasi, dan alur wali–PPDB](ACCOUNT_LEVELS_PPDB.md).
 - [PPDB, enrollment, dan manajemen berkas](ADMISSIONS_FILES.md).
 - [Website builder, versi konten, dan renderer publik](WEBSITE_BUILDER.md).
 - [Custom domain, boarding, library, audit, dan sesi](OPERATIONS_SECURITY.md).
@@ -27,7 +28,7 @@ di halaman login dan toolbar menyimpan pilihan. Light memakai putih dan aksen
 biru muda, dark memakai hitam, dengan tombol utama #004aad dan pastel terbatas.
 
 Untuk instalasi yang sudah memiliki data, jalankan `npm install` dan
-`npm run db:migrate`, kemudian restart API/admin/website. Migrasi 002–013 menambah tabel
+`npm run db:migrate`, kemudian restart API/admin/website. Migrasi 002–016 menambah tabel
 dan izin tanpa reset database; `npm run db:seed` tetap idempoten.
 Isi variabel baru berdasarkan `.env.example`; setup tidak menimpa `.env` lama.
 Setelah migrasi phase 24, pengguna perlu login kembali satu kali karena access
@@ -84,24 +85,27 @@ Secret JWT dibuat acak oleh setup. Kredensial contoh khusus development.
 
 ## Alur penggunaan admin
 
-1. **Pengaturan Sekolah → Tahun Ajaran → Semester → Tingkat Kelas**.
-2. Buat **Guru, Orang Tua, Siswa, Staf**. **Wali Siswa** menghubungkan banyak
+1. Mulai dari **Dashboard**. Akun yayasan dapat memilih atau menambah lokasi
+   sekolah; menu **Data Sekolah** ditempatkan paling bawah.
+2. **Data Sekolah → Pengaturan Sekolah → Tahun Ajaran → Semester → Tingkat Kelas**.
+3. Buat **Guru, Orang Tua, Siswa, Staf**. **Wali Siswa** menghubungkan banyak
    siswa dengan banyak orang tua; wali utama dibatasi satu per siswa.
-3. Buat **Kelas** dengan wali kelas dan **Mata Pelajaran**.
-4. **Kompetensi Guru** menghubungkan guru dengan pelajaran. **Pelajaran Kelas**
+4. Buat **Kelas** dengan wali kelas dan **Mata Pelajaran**.
+5. **Kompetensi Guru** menghubungkan guru dengan pelajaran. **Pelajaran Kelas**
    menghubungkan kelas, pelajaran, guru, dan semester. **Anggota Kelas**
    menempatkan siswa dalam satu kelas per tahun ajaran.
-5. Atur **Jadwal Pelajaran**. Hari 1=Senin hingga 7=Minggu. Jam yang bersebelahan
+6. Atur **Jadwal Pelajaran**. Hari 1=Senin hingga 7=Minggu. Jam yang bersebelahan
    diperbolehkan; kelas/guru dengan jam beririsan ditolak, termasuk request bersamaan.
-6. **Absensi**: pilih kelas, semester, tanggal; isi Hadir/Terlambat/Sakit/Izin/Alpa.
+7. **Absensi**: pilih kelas, semester, tanggal; isi Hadir/Terlambat/Sakit/Izin/Alpa.
    Status awal pada layar adalah Hadir, dan tersimpan hanya setelah tombol Simpan.
-7. **Bobot Penilaian → Penilaian → Input Nilai**. Jumlah bobot tiap pelajaran
+8. **Bobot Penilaian → Penilaian → Input Nilai**. Jumlah bobot tiap pelajaran
    harus 100% sebelum raport dihitung. Kolom nilai kosong bukan nilai nol.
-8. **Raport Siswa**: pilih kelas, semester, siswa → Hitung → Review →
+9. **Raport Siswa**: pilih kelas, semester, siswa → Hitung → Review →
    persetujuan kepala sekolah bila diwajibkan → Publikasikan → Unduh PDF.
-9. **Akun Pengguna** untuk akun guru/principal/parent/student. Hubungkan akun
-   melalui field Akun pengguna di master Guru/Orang Tua/Siswa. Orang tua dan
-   siswa hanya melihat raport terbit yang terhubung ke akun mereka.
+10. **Akun Pengguna** memisahkan kategori Operasional dan Keluarga. Pilih role
+    operasional berbasis permission; wali mendaftar sendiri dan membuat akun
+    siswa setelah enrollment PPDB. Hubungkan akun lama melalui field Akun
+    pengguna pada master Guru/Orang Tua/Siswa bila diperlukan.
 
 Relasi tahun ajaran/kelas/pelajaran yang sudah dibuat tidak dapat dipindahkan
 dengan PATCH. Koreksi nama, kontak, wali kelas, jam jadwal, dan nilai tetap
@@ -239,7 +243,7 @@ tenant memakai transaction advisory lock. Ini mengutamakan konsistensi pada
 V0.2; fine-grained locking dapat ditambahkan bila beban meningkat.
 
 Hasil verifikasi implementasi (9 September 2026): build API/admin/website dan
-typecheck lulus; 12 unit test, 43 integration test, serta 5 pengujian UI Chromium
+typecheck lulus; 12 unit test, 44 integration test, serta 5 pengujian UI Chromium
 lulus. Detail lingkungan, cakupan, dan batas pemeriksaan ada di
 [VERIFICATION.md](VERIFICATION.md).
 

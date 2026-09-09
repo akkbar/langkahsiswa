@@ -73,8 +73,7 @@ export class SitesController {
       const duplicate = (
         await sql.query("SELECT 1 FROM tenants WHERE slug=$1", [input.slug])
       ).rowCount;
-      if (duplicate)
-        throw new ConflictException("Kode lokasi sudah digunakan");
+      if (duplicate) throw new ConflictException("Kode lokasi sudah digunakan");
 
       const organization = (
         await sql.query(
@@ -120,9 +119,18 @@ export class SitesController {
           ],
         )
       ).rows[0];
+      const sourceRoles = (
+        await sql.query(
+          "SELECT role_id FROM user_roles WHERE tenant_id=$1 AND user_id=$2",
+          [req.actor.tenant_id, req.actor.id],
+        )
+      ).rows.map((row) => row.role_id);
+      const targetRole = sourceRoles.includes("FOUNDATION_HEAD")
+        ? "FOUNDATION_HEAD"
+        : "SCHOOL_ADMIN";
       await sql.query(
-        "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'SCHOOL_ADMIN')",
-        [tenant.id, localUser.id],
+        "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,$3)",
+        [tenant.id, localUser.id, targetRole],
       );
       await sql.query(
         "INSERT INTO schools(tenant_id,name,address,phone,principal_name) VALUES($1,$2,$3,$4,$5)",
@@ -167,12 +175,7 @@ export class SitesController {
     if (!target) throw new NotFoundException("Akses lokasi tidak ditemukan");
 
     const result = await this.db.transaction(target.tenant_id, async (sql) => ({
-      ...(await this.auth.tokens(
-        sql,
-        target.user_id,
-        target.tenant_id,
-        req,
-      )),
+      ...(await this.auth.tokens(sql, target.user_id, target.tenant_id, req)),
       user: await this.auth.actor(target.user_id, target.tenant_id),
     }));
     refreshCookie(res, result.refresh_token);
