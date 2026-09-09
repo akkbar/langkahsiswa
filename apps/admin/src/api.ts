@@ -1,4 +1,4 @@
-import type { Actor, Entity, Page } from "../../../packages/shared-types/src";
+﻿import type { Actor, Entity, Page } from "../../../packages/shared-types/src";
 let token = "";
 export function setToken(value: string) {
   token = value;
@@ -72,7 +72,7 @@ export async function all(key: string) {
   let page = 1;
   let total = 1;
   while (data.length < total) {
-    const result = await api<Page<Entity>>(`${key}?limit=200&page=${page++}`);
+    const result = await api<Page<Entity>>(`${key}?limit=100&page=${page++}`);
     data = data.concat(result.data);
     total = result.total;
     if (!result.data.length) break;
@@ -99,4 +99,44 @@ export async function downloadReport(id: string) {
   a.download = `raport-${id}.pdf`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+export async function downloadFile(path: string, filename: string) {
+  const request = () =>
+    fetch(`/api/v1/${path}`, {
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  let response = await request();
+  if (response.status === 401) {
+    await refreshSession();
+    response = await request();
+  }
+  if (!response.ok)
+    throw new Error(
+      (
+        await response
+          .json()
+          .catch(() => ({ message: "Berkas belum dapat diunduh" }))
+      ).message,
+    );
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+export async function authenticatedBlobUrl(path: string) {
+  const request = () =>
+    fetch(`/api/v1/${path}`, {
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  let response = await request();
+  if (response.status === 401) {
+    await refreshSession();
+    response = await request();
+  }
+  if (!response.ok) throw new Error("Aset tidak dapat dimuat");
+  return URL.createObjectURL(await response.blob());
 }

@@ -1,25 +1,52 @@
-# Status implementasi — 7 September 2026
+# Status implementasi — 9 September 2026
 
-Phase 0–9 telah diimplementasikan sebagai **SchoolApp V0.2**.
+Implementasi phase 0–22 dan 24 selesai sebagai **SchoolApp V1.0**. Phase 23
+ditunda sesuai keputusan proyek dan memiliki catatan implementasi terpisah.
+Phase 0–9 diperiksa kembali dengan pengujian regresi database/HTTP.
 Panduan menjalankan dan batas implementasi: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
 
-| Phase | Status | Hasil |
-| --- | --- | --- |
-| 0 | Selesai | Monorepo npm, NestJS, React, Docker PostgreSQL/Redis/MinIO, health nyata |
-| 1 | Selesai | Tenant/domain/settings, resolver domain/header/JWT, FK komposit untuk isolasi tenant |
-| 2 | Selesai | Login, JWT, rotasi refresh token, role/permission, akun, bootstrap super admin |
-| 3 | Selesai | Sekolah, tahun ajaran, semester, tingkat, kelas, pelajaran + validasi hierarki |
-| 4 | Selesai | Siswa, orang tua, wali banyak-ke-banyak, guru, staf; list/add/edit/detail |
-| 5 | Selesai | Admin React: login, master sekolah dan warga sekolah, kebijakan, akun |
-| 6 | Selesai | Kompetensi guru, pelajaran kelas, enrollment, jadwal, deteksi bentrok atomik |
-| 7 | Selesai | Sesi/record absensi manual, 5 status, validasi roster dan semester |
-| 8 | Selesai | Kategori berbobot, assessment, input nilai, normalisasi dan kelengkapan |
-| 9 | Selesai | Kalkulasi raport, review wali kelas, approval opsional, publikasi, PDF, akses wali/siswa |
-| 10–24 | Belum dikerjakan | Mengikuti roadmap asli di bawah |
+| Phase | Status     | Hasil                                                                                                                   |
+| ----- | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 0     | Selesai    | Monorepo npm, NestJS, React, Docker PostgreSQL/Redis/MinIO, health nyata                                                |
+| 1     | Selesai    | Tenant/domain/settings, resolver domain/header/JWT, FK komposit untuk isolasi tenant                                    |
+| 2     | Selesai    | Login password/Google, JWT, rotasi refresh token, logout web/native, role/permission, akun                              |
+| 3     | Selesai    | Sekolah, tahun ajaran, semester, tingkat, kelas, pelajaran + validasi hierarki                                          |
+| 4     | Selesai    | Siswa, orang tua, wali banyak-ke-banyak, guru, staf; list/add/edit/detail                                               |
+| 5     | Selesai    | Admin React, tema dark/light hitam/putih dengan primary #004aad, aksen biru muda/pastel tipis                           |
+| 6     | Selesai    | Kompetensi guru, pelajaran kelas, enrollment, jadwal, deteksi bentrok atomik                                            |
+| 7     | Selesai    | Sesi/record absensi manual, 5 status, validasi roster dan semester                                                      |
+| 8     | Selesai    | Kategori berbobot, assessment, input nilai, normalisasi dan kelengkapan                                                 |
+| 9     | Selesai    | Kalkulasi raport, review wali kelas, approval opsional, publikasi, PDF, akses wali/siswa                                |
+| 10    | Selesai V1 | Jenis biaya, invoice/item, unggah bukti, pembayaran parsial, verifikasi idempoten                                       |
+| 11    | Selesai V1 | Saldo/ledger immutable, topup terverifikasi, purchase/refund/adjustment transaksional                                   |
+| 12    | Selesai V1 | POS React #pos, cari NIS, produk/stok, keranjang, checkout dan struk                                                    |
+| 13    | Selesai V1 | Monitoring wali, saldo/belanja/riwayat, batas harian/bulanan/kategori dan merchant                                      |
+| 14    | Selesai V1 | Event bertarget, publikasi, inbox dan status baca, deduplikasi                                                          |
+| 15    | Selesai V1 | Flutter parent/student/teacher, akademik, raport PDF, billing, wallet, event/notifikasi                                 |
+| 16    | Selesai V1 | Device tokens, FCM HTTP v1, outbox persisten, retry, penanganan token tidak valid                                       |
+| 17    | Selesai V1 | Form PPDB publik, periode/kuota, dokumen, review bertahap, tes/wawancara, diterima dan enrollment atomik                |
+| 18    | Selesai V1 | Pustaka berkas privat, MinIO/filesystem, metadata/tautan, pencarian, unduh, arsip/pemulihan dan UI                      |
+| 19    | Selesai V1 | Website builder 11 blok, JSON aman, pustaka aset, versi immutable, preview, publish/unpublish, renderer publik terpisah |
+| 20    | Selesai V1 | Custom domain, bukti CNAME/TXT, verifikasi DNS, domain utama, resolver host, dan status SSL                             |
+| 21    | Selesai V1 | Asrama/kamar/bed, penempatan, izin, kunjungan, disiplin, tahfidz, aktivitas, laundry-wallet, portal milik sendiri       |
+| 22    | Selesai V1 | Buku/copy/barcode, peminjaman, pengembalian, denda, pembayaran wallet, portal milik sendiri                             |
+| 23    | Ditunda    | Hardware/device gateway/MQTT belum diimplementasikan; kontrak awal dicatat di docs                                      |
+| 24    | Selesai V1 | Audit append-only, login history, sesi perangkat, rotasi refresh, pencabutan token, dan UI keamanan                     |
 
 Verifikasi mencakup build TypeScript/React, unit test formula/validasi,
 integration test HTTP memakai PostgreSQL terisolasi, pengujian Chromium admin,
-dan pemeriksaan visual PDF. Lihat panduan untuk perintah reproduksi.
+dan pengujian Flutter. Hasil: 12 unit test API, 43 integration test, 5 pengujian
+web, dan 12 test Flutter lulus; build API/admin/website dan APK Android debug berhasil.
+Lihat [catatan verifikasi](docs/VERIFICATION.md) untuk perintah dan batas pengujian.
+
+**Aktivasi eksternal:** login Google memerlukan OAuth client ID; push nyata
+memerlukan konfigurasi Firebase dan perangkat. Pengujian lokal menyimulasikan
+layanan Google/FCM, sementara HTTP/database dan alur aplikasi diuji langsung.
+Tanpa kredensial tersebut, login password dan notifikasi dalam aplikasi tersedia;
+pengiriman push tetap menunggu konfigurasi. Detail:
+[Google](docs/GOOGLE_LOGIN.md), [keuangan](docs/FINANCE.md),
+[mobile/notifikasi](docs/MOBILE_NOTIFICATIONS.md), dan
+[PPDB/berkas](docs/ADMISSIONS_FILES.md).
 
 ---
 
@@ -781,6 +808,10 @@ Report card PDF
 
 # Phase 19 — School Website Builder
 
+**Status: selesai V1 pada 9 September 2026.** Editor tersedia di `#website`,
+renderer publik di `apps/website`, dan kontrak/API dijelaskan di
+[docs/WEBSITE_BUILDER.md](docs/WEBSITE_BUILDER.md).
+
 Saya sengaja taruh cukup belakang.
 
 Karena website builder sebenarnya produk sendiri.
@@ -828,6 +859,9 @@ React/Next renderer akan membangun halaman dari JSON tersebut.
 
 # Phase 20 — Custom Domain
 
+**Status: selesai V1 pada 9 September 2026.** Implementasi dan konfigurasi
+tercantum di [docs/OPERATIONS_SECURITY.md](docs/OPERATIONS_SECURITY.md).
+
 Setelah website renderer berjalan:
 
 ```text
@@ -860,6 +894,9 @@ active
 
 # Phase 21 — Boarding School
 
+**Status: selesai V1 pada 9 September 2026.** Seluruh fitur utama tersedia di
+menu `#boarding`, termasuk integrasi pembayaran laundry dengan wallet.
+
 Kemudian masuk fitur pondok khusus:
 
 ```text
@@ -888,6 +925,9 @@ Wallet yang sebelumnya sudah dibangun akan langsung berguna di sini.
 
 # Phase 22 — Library
 
+**Status: selesai V1 pada 9 September 2026.** Katalog, eksemplar, sirkulasi,
+pengembalian, denda, dan pembayaran wallet tersedia di menu `#library`.
+
 Tambahkan:
 
 ```text
@@ -912,6 +952,10 @@ Dormitory
 ---
 
 # Phase 23 — Hardware Integration
+
+**Status: ditunda sesuai instruksi.** Belum ada kode hardware yang dibuat.
+Catatan batas fase tersedia di
+[docs/PHASE_23_DEFERRED.md](docs/PHASE_23_DEFERRED.md).
 
 Baru sekarang masuk wilayah yang familiar buat kamu.
 
@@ -947,6 +991,9 @@ bukan membuat NestJS utama langsung berbicara dengan setiap RFID reader.
 ---
 
 # Phase 24 — Audit & Security
+
+**Status: selesai V1 pada 9 September 2026.** Audit immutable, riwayat login,
+sesi perangkat, dan pencabutan token tersedia di menu `#security`.
 
 Ini sebenarnya dilakukan sedikit demi sedikit, tapi sebelum production harus serius.
 

@@ -26,6 +26,26 @@ import { GradebookController } from "./gradebook";
 import { ReportsController } from "./reports";
 import { ApiErrorFilter } from "./http";
 import { jwtSecret } from "./config";
+import { GoogleIdentityVerifier } from "./google-identity";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import {
+  EventsController,
+  NotificationsController,
+  DeviceTokensController,
+  NotificationDispatcher,
+} from "./notifications";
+import { PortalController } from "./portal";
+import { FinanceController } from "./finance";
+import {
+  AdmissionsController,
+  FilesController,
+  PublicAdmissionsController,
+} from "./admissions";
+import { PublicWebsiteController, WebsiteController } from "./website";
+import { DomainsController } from "./domains";
+import { BoardingController } from "./boarding";
+import { LibraryController } from "./library";
+import { AuditInterceptor, SecurityController } from "./security";
 @Injectable()
 export class RedisConnection implements OnModuleDestroy {
   readonly client = new Redis(
@@ -72,26 +92,50 @@ class HealthController {
   }
 }
 @Module({
-  providers: [Database, AuthService, AuthGuard, RedisConnection],
+  providers: [
+    Database,
+    AuthService,
+    AuthGuard,
+    RedisConnection,
+    GoogleIdentityVerifier,
+    NotificationDispatcher,
+    AuditInterceptor,
+  ],
   controllers: [
     HealthController,
+    PublicAdmissionsController,
+    PublicWebsiteController,
     AuthController,
     UsersController,
     TenantsController,
     AttendanceController,
     GradebookController,
     ReportsController,
+    EventsController,
+    NotificationsController,
+    DeviceTokensController,
+    PortalController,
+    FinanceController,
+    AdmissionsController,
+    FilesController,
+    WebsiteController,
+    DomainsController,
+    BoardingController,
+    LibraryController,
+    SecurityController,
     ResourcesController,
   ],
 })
 export class AppModule {}
 export async function createApp(logging = true) {
   jwtSecret();
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: logging ? ["log", "error", "warn"] : false,
   });
+  app.useBodyParser("json", { limit: "7mb" });
   app.use(helmet());
   app.use(cookieParser());
+  app.useGlobalInterceptors(app.get(AuditInterceptor));
   const origins = (process.env.CORS_ORIGIN || "http://localhost:5173")
     .split(",")
     .map((v) => v.trim());

@@ -12,11 +12,40 @@ import { ScoresPage } from "./pages/grades";
 import { ReportsPage } from "./pages/reports";
 import { SettingsPage } from "./pages/settings";
 import { UsersPage } from "./pages/users";
+import { ThemeToggle } from "./theme";
+import {
+  BillingPage,
+  WalletPage,
+  PosPage,
+  financeAccess,
+  financeAdmin,
+} from "./pages/finance";
+import {
+  EventsPage,
+  NotificationsPage,
+  PortalPage,
+} from "./pages/communications";
+import { AdmissionsPage, FilesPage } from "./pages/admissions-files";
+import { PublicAdmissions } from "./pages/ppdb-public";
+import { WebsiteBuilderPage } from "./pages/website-builder";
+import {
+  BoardingPage,
+  DomainsPage,
+  LibraryPage,
+  SecurityPage,
+} from "./pages/operations";
+const homeRoute = (user: Actor) =>
+  can(user, "student.read")
+    ? "students"
+    : financeAdmin(user)
+      ? "billing"
+      : user.roles.some((role) =>
+            ["PARENT", "STUDENT", "TEACHER"].includes(role),
+          )
+        ? "portal"
+        : "events";
 function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
-  const [route, setRoute] = useState(
-    location.hash.slice(1) ||
-      (can(user, "student.read") ? "students" : "report-cards"),
-  );
+  const [route, setRoute] = useState(location.hash.slice(1) || homeRoute(user));
   const [catalog, setCatalog] = useState<Catalog>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -81,13 +110,108 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
     })),
     ...extra,
   ].filter((r) => can(user, r.permission));
+  links.push(
+    {
+      key: "portal",
+      title: "Ringkasan Siswa",
+      group: "Kehadiran",
+      permission: "",
+    },
+    ...(financeAccess(user)
+      ? [
+          {
+            key: "billing",
+            title: "Tagihan Sekolah",
+            group: "Keuangan",
+            permission: "",
+          },
+          {
+            key: "wallet",
+            title: "Dompet Siswa",
+            group: "Keuangan",
+            permission: "",
+          },
+        ]
+      : []),
+    ...(financeAdmin(user)
+      ? [
+          {
+            key: "pos",
+            title: "Kasir Kantin",
+            group: "Keuangan",
+            permission: "",
+          },
+        ]
+      : []),
+    {
+      key: "events",
+      title: "Agenda Sekolah",
+      group: "Komunikasi",
+      permission: "",
+    },
+    {
+      key: "notifications",
+      title: "Notifikasi",
+      group: "Komunikasi",
+      permission: "",
+    },
+  );
+  if (can(user, "admission.read"))
+    links.push({
+      key: "admissions",
+      title: "PPDB",
+      group: "Administrasi",
+      permission: "",
+    });
+  if (can(user, "file.read"))
+    links.push({
+      key: "files",
+      title: "Manajemen Berkas",
+      group: "Administrasi",
+      permission: "",
+    });
+  if (can(user, "website.read"))
+    links.push({
+      key: "website",
+      title: "Website Sekolah",
+      group: "Publikasi",
+      permission: "",
+    });
+  if (can(user, "domain.read"))
+    links.push({
+      key: "domains",
+      title: "Custom Domain",
+      group: "Publikasi",
+      permission: "",
+    });
+  if (can(user, "boarding.read"))
+    links.push({
+      key: "boarding",
+      title: "Boarding School",
+      group: "Operasional",
+      permission: "",
+    });
+  if (can(user, "library.read"))
+    links.push({
+      key: "library",
+      title: "Perpustakaan",
+      group: "Operasional",
+      permission: "",
+    });
+  if (can(user, "audit.read"))
+    links.push({
+      key: "security",
+      title: "Audit & Keamanan",
+      group: "Administrasi",
+      permission: "",
+    });
   const groups = [...new Set(links.map((l) => l.group))];
   const allowed = links.some((l) => l.key === route);
   const title = links.find((l) => l.key === route)?.title || "SchoolApp";
   return (
     <div className="workspace">
       <aside className={mobileOpen ? "sidebar open" : "sidebar"}>
-        <a className="brand" href="#students">
+        <a className="brand" href={`#${homeRoute(user)}`}>
           <span className="brandmark">S</span>SchoolApp
         </a>
         <div className="school-pill">
@@ -96,7 +220,7 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
             <strong>
               {String(catalog.schools?.[0]?.name || "Sekolah Anda")}
             </strong>
-            <span>Ruang kerja akademik</span>
+            <span>Ruang kerja sekolah</span>
           </div>
         </div>
         <nav aria-label="Navigasi utama">
@@ -120,15 +244,23 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <span className="badge green">V0.2 · Academic</span>
+          <span className="badge">V1.0 · School Platform</span>
         </div>
       </aside>
+      {mobileOpen && (
+        <button
+          className="sidebar-backdrop"
+          aria-label="Tutup menu"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
       <div className="main-shell">
         <header className="topbar">
           <div>
             <button
               className="menu-toggle"
               aria-label="Buka menu"
+              aria-expanded={mobileOpen}
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               ☰
@@ -138,6 +270,7 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
             <strong>{title}</strong>
           </div>
           <div className="user-menu">
+            <ThemeToggle />
             <div>
               <strong>{user.name}</strong>
               <span className="small muted">{user.roles.join(" · ")}</span>
@@ -192,12 +325,39 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
             <ReportsPage catalog={catalog} user={user} />
           ) : route === "users" ? (
             <UsersPage catalog={catalog} refresh={refresh} />
+          ) : route === "billing" ? (
+            <BillingPage user={user} />
+          ) : route === "wallet" ? (
+            <WalletPage user={user} />
+          ) : route === "pos" ? (
+            <PosPage />
+          ) : route === "events" ? (
+            <EventsPage user={user} catalog={catalog} />
+          ) : route === "notifications" ? (
+            <NotificationsPage user={user} />
+          ) : route === "portal" ? (
+            <PortalPage />
+          ) : route === "admissions" ? (
+            <AdmissionsPage user={user} catalog={catalog} />
+          ) : route === "files" ? (
+            <FilesPage user={user} catalog={catalog} />
+          ) : route === "website" ? (
+            <WebsiteBuilderPage user={user} catalog={catalog} />
+          ) : route === "domains" ? (
+            <DomainsPage user={user} />
+          ) : route === "boarding" ? (
+            <BoardingPage user={user} catalog={catalog} />
+          ) : route === "library" ? (
+            <LibraryPage user={user} catalog={catalog} />
+          ) : route === "security" ? (
+            <SecurityPage user={user} />
           ) : (
             <SettingsPage user={user} />
           )}
         </main>
         <footer className="app-footer">
-          SchoolApp <span>Administrasi akademik, dalam satu ruang.</span>
+          SchoolApp{" "}
+          <span>Akademik, keuangan, dan komunikasi dalam satu ruang.</span>
         </footer>
       </div>
     </div>
@@ -206,6 +366,7 @@ function Workspace({ user, onLogout }: { user: Actor; onLogout: () => void }) {
 function App() {
   const [user, setUser] = useState<Actor | null>(null);
   const [loading, setLoading] = useState(true);
+  const [publicRoute, setPublicRoute] = useState(location.hash.slice(1));
   useEffect(() => {
     refreshSession()
       .then((data) => setUser(data.user))
@@ -216,7 +377,12 @@ function App() {
       setToken("");
     };
     window.addEventListener("session-expired", expire);
-    return () => window.removeEventListener("session-expired", expire);
+    const change = () => setPublicRoute(location.hash.slice(1));
+    window.addEventListener("hashchange", change);
+    return () => {
+      window.removeEventListener("session-expired", expire);
+      window.removeEventListener("hashchange", change);
+    };
   }, []);
   if (loading)
     return (
@@ -224,7 +390,9 @@ function App() {
         Memuat SchoolApp…
       </main>
     );
-  return user ? (
+  return !user && publicRoute === "ppdb" ? (
+    <PublicAdmissions />
+  ) : user ? (
     <Workspace
       user={user}
       onLogout={() => {
@@ -236,7 +404,7 @@ function App() {
     <Login
       onLogin={(u) => {
         setUser(u);
-        location.hash = can(u, "student.read") ? "students" : "report-cards";
+        location.hash = homeRoute(u);
       }}
     />
   );

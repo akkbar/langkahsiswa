@@ -8,3 +8,6 @@ output
 tmp
 test-results
 playwright-report
+apps/mobile/build
+apps/mobile/.dart_tool
+apps/mobile/android/.gradle

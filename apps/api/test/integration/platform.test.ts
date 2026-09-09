@@ -179,6 +179,16 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
     );
     await t.test("school admins cannot provision tenants", async () => {
       await post(
+        "users",
+        {
+          name: "Attempted escalation",
+          email: "escalation@a.test",
+          password: "Password!2026",
+          roles: ["SUPER_ADMIN"],
+        },
+        400,
+      );
+      await post(
         "tenants",
         {
           name: "X",

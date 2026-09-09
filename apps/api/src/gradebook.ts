@@ -12,6 +12,7 @@ import {
 import { scoresSchema, uuid } from "../../../packages/validation/src";
 import { AuthGuard, AuthRequest, allow } from "./auth";
 import { Database } from "./database";
+import { notifyStudent } from "./notifications";
 import {
   editableGrades,
   enrolled,
@@ -117,6 +118,19 @@ export class GradebookController {
             item.score,
             req.actor.id,
           ],
+        );
+        await notifyStudent(
+          sql,
+          tenant,
+          item.student_id,
+          "Nilai diperbarui",
+          `Nilai ${assessment.name} sudah tersedia.`,
+          {
+            type: "GRADE",
+            student_id: item.student_id,
+            assessment_id: input.assessment_id,
+          },
+          `grade:${input.assessment_id}:${item.student_id}:${item.score}`,
         );
       }
       return {

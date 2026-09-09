@@ -22,6 +22,7 @@ import { AuthGuard, AuthRequest, allow } from "./auth";
 import { Database, Sql } from "./database";
 import { classSemester, enrolled, record, teachClass } from "./academic-policy";
 import { calculateFinalGrade, CategoryGrade } from "./gradebook";
+import { notifyStudent } from "./notifications";
 
 export async function reportPdf(report: any): Promise<Buffer> {
   const doc = new PDFDocument({
@@ -409,6 +410,17 @@ export class ReportsController {
         if (!["REVIEWED", "APPROVED"].includes(report.status))
           throw new ConflictException("Raport bukan dalam tahap review");
         status = "DRAFT";
+      }
+      if (status === "PUBLISHED") {
+        await notifyStudent(
+          sql,
+          req.actor.tenant_id,
+          report.student_id,
+          "Raport dipublikasikan",
+          "Raport siswa sudah tersedia untuk dilihat dan diunduh.",
+          { type: "REPORT", student_id: report.student_id, report_id: id },
+          `report:${id}:published`,
+        );
       }
       return (
         await sql.query(

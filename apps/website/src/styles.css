@@ -1,0 +1,49 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap");
+:root {
+  font-family: "DM Sans", system-ui, sans-serif;
+  background: #fff;
+  color: #0c1729;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.sw-site h1,
+.sw-site h2,
+.sw-site h3,
+.sw-brand {
+  font-family: Manrope, system-ui, sans-serif;
+}
+.site-state {
+  align-items: center;
+  background: #f5f9ff;
+  color: #15233a;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 28px;
+  text-align: center;
+}
+.site-state p {
+  color: #63738a;
+}
+.site-state a {
+  color: #004aad;
+  font-weight: 700;
+}
+.site-mark {
+  background: #004aad;
+  border-radius: 13px;
+  color: #fff;
+  display: grid;
+  font-size: 30px;
+  font-weight: 800;
+  height: 58px;
+  margin-bottom: 20px;
+  place-items: center;
+  width: 58px;
+}

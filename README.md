@@ -1,12 +1,23 @@
 # SchoolApp
 
-**V0.2 — implementasi phase 0 sampai 9 tersedia.** API NestJS, admin React,
+**V1.0 — implementasi phase 0–22 dan 24; phase 23 ditunda.** API NestJS, admin React,
 multi-tenant PostgreSQL, autentikasi/role, master sekolah, siswa/wali/guru/staf,
 struktur akademik dan jadwal, absensi, gradebook, serta raport dengan review,
-persetujuan opsional, publikasi, dan unduhan PDF.
+persetujuan opsional, publikasi, dan unduhan PDF. Dilengkapi billing manual,
+dompet siswa, POS kantin, batas belanja wali, event, notifikasi, Flutter,
+integrasi Firebase Cloud Messaging, login Google, PPDB publik, enrollment calon
+siswa, pustaka berkas privat berbasis MinIO/filesystem, serta website builder
+berbasis blok dengan riwayat versi dan renderer publik terpisah. V1.0 juga
+mencakup custom domain, operasional pondok, perpustakaan, serta audit dan sesi
+keamanan. Integrasi hardware phase 23 belum diaktifkan.
+
+Tema light/dark memakai warna utama **#004aad**, latar putih/hitam, aksen biru
+muda, dan pastel tipis. Pilihan tema tersimpan pada perangkat.
 
 Panduan instalasi, akun demo, API, aturan bisnis, dan pengujian:
 **[docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)**.
+Langkah startup dari instalasi pertama sampai aplikasi mobile:
+**[docs/START_APP.md](docs/START_APP.md)**.
 Status per phase: **[PHASES.md](PHASES.md)**.
 
 ```powershell
@@ -18,12 +29,22 @@ npm run db:seed
 npm run dev
 ```
 
-Buka **http://localhost:5173**. Login demo: sekolah `demo`, email
+Buka admin di **http://localhost:5173** dan renderer website sekolah di
+**http://localhost:5174/{kode-sekolah}/{slug}**. Login demo: sekolah `demo`, email
 `admin@demo.schoolapp.id`, password `SchoolApp!2026`.
 Health: **http://localhost:3000/health**.
 
 Implementasi menggunakan migrasi SQL versioned dan `pg` untuk PostgreSQL.
-Phase 10+ masih berupa roadmap; dokumen rancangan asli dipertahankan di bawah.
+Panduan modul: [Keuangan/POS](docs/FINANCE.md),
+[Flutter dan Firebase](docs/MOBILE_NOTIFICATIONS.md),
+[login Google](docs/GOOGLE_LOGIN.md),
+[PPDB/manajemen berkas](docs/ADMISSIONS_FILES.md),
+[website builder](docs/WEBSITE_BUILDER.md),
+[operasional dan keamanan](docs/OPERATIONS_SECURITY.md), serta
+[catatan phase 23](docs/PHASE_23_DEFERRED.md).
+Google/Firebase memerlukan konfigurasi proyek sendiri; tanpa kredensial,
+login password dan notifikasi dalam aplikasi tetap berjalan. Rancangan asli
+dipertahankan di bawah sebagai referensi.
 
 ---
 
@@ -392,11 +413,7 @@ Payload:
   "sub": "user-id",
   "tenant_id": "school-id",
   "roles": ["teacher"],
-  "permissions": [
-    "grade.read",
-    "grade.write",
-    "attendance.write"
-  ]
+  "permissions": ["grade.read", "grade.write", "attendance.write"]
 }
 ```
 
@@ -446,9 +463,9 @@ student.parent_id
 
 karena satu siswa bisa punya:
 
-* father
-* mother
-* guardian
+- father
+- mother
+- guardian
 
 dan satu parent bisa punya banyak anak.
 
@@ -1155,11 +1172,11 @@ size
 
 Saya sarankan PostgreSQL dari awal karena:
 
-* relational data kuat
-* JSONB untuk website builder
-* transaction kuat untuk wallet
-* indexing bagus
-* row-level structures cocok untuk multi-tenant
+- relational data kuat
+- JSONB untuk website builder
+- transaction kuat untuk wallet
+- indexing bagus
+- row-level structures cocok untuk multi-tenant
 
 Wallet khususnya sangat butuh database transaction.
 

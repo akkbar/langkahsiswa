@@ -1,8 +1,46 @@
-# SchoolApp V0.2 — Phase 0–9
+# SchoolApp V1.0 — Phase 0–22 dan 24
 
 Implementasi berupa monorepo npm: API NestJS/TypeScript, admin React/Vite,
-PostgreSQL, Redis, dan MinIO. Public website, POS, dan Flutter mengikuti phase
-lanjutan sehingga belum dibuat. Rancangan lengkap tetap ada di README/PHASES.
+PostgreSQL, Redis, dan MinIO, dengan aplikasi Flutter pada `apps/mobile`.
+POS React berada pada halaman `#pos` dalam admin yang sama.
+Form publik PPDB dan website sekolah berbasis blok tersedia.
+Rancangan lengkap tetap ada di README/PHASES.
+
+## Pembaruan phase 10–19
+
+- [Billing, bukti transfer, dompet, POS, dan batas belanja wali](FINANCE.md).
+- [Event, notifikasi, Flutter, dan konfigurasi push Firebase](MOBILE_NOTIFICATIONS.md).
+- [Login Google dan penautan akun sekolah](GOOGLE_LOGIN.md).
+- [PPDB, enrollment, dan manajemen berkas](ADMISSIONS_FILES.md).
+- [Website builder, versi konten, dan renderer publik](WEBSITE_BUILDER.md).
+- [Custom domain, boarding, library, audit, dan sesi](OPERATIONS_SECURITY.md).
+- [Phase 23 yang ditunda](PHASE_23_DEFERRED.md).
+
+Menu tambahan mencakup Tagihan Sekolah (termasuk verifikasi), Dompet Siswa,
+Kasir Kantin (termasuk merchant/produk), Agenda Sekolah, Notifikasi, dan
+Ringkasan Siswa sesuai peran. Alur keuangan/POS tersedia
+untuk school admin dan FINANCE; wali/siswa hanya mendapat data yang terhubung.
+Guru tetap memakai akademik. Principal/admin mengelola publikasi event.
+
+Tema mengikuti preferensi perangkat pada kunjungan pertama; tombol Terang/Gelap
+di halaman login dan toolbar menyimpan pilihan. Light memakai putih dan aksen
+biru muda, dark memakai hitam, dengan tombol utama #004aad dan pastel terbatas.
+
+Untuk instalasi yang sudah memiliki data, jalankan `npm install` dan
+`npm run db:migrate`, kemudian restart API/admin/website. Migrasi 002–013 menambah tabel
+dan izin tanpa reset database; `npm run db:seed` tetap idempoten.
+Isi variabel baru berdasarkan `.env.example`; setup tidak menimpa `.env` lama.
+Setelah migrasi phase 24, pengguna perlu login kembali satu kali karena access
+token lama belum memiliki ID sesi perangkat.
+
+File bukti memakai volume `proof_data` pada Docker. FCM memakai service-account
+JSON privat; Google login memakai OAuth client ID. Pengiriman ke perangkat dan
+login Google sungguhan perlu konfigurasi eksternal tersebut. Tanpa Firebase,
+outbox tetap PENDING dan kotak notifikasi aplikasi dapat digunakan.
+
+Hasil pemeriksaan terakhir dan batas pengujian tersedia di [VERIFICATION.md](VERIFICATION.md).
+Panduan startup terperinci untuk mode development, Docker penuh, dan Flutter
+tersedia di [START_APP.md](START_APP.md).
 
 ## Menjalankan secara lokal
 
@@ -18,6 +56,7 @@ npm run dev
 ```
 
 - Admin: http://localhost:5173
+- Website publik: http://localhost:5174/{kode-sekolah}/{slug}
 - API health: http://localhost:3000/health
 - MinIO console: http://localhost:9001 (akun dev di `.env`)
 - Login demo: kode sekolah **demo**, email **admin@demo.schoolapp.id**,
@@ -35,9 +74,9 @@ docker compose up -d --build
 docker compose exec api npm run db:seed
 ```
 
-Jangan jalankan `npm run dev` bersamaan dengan container api/admin karena
+Jangan jalankan `npm run dev` bersamaan dengan container api/admin/website karena
 menggunakan port yang sama. Untuk berpindah ke development:
-`docker compose stop api admin`, lalu `npm run dev`.
+`docker compose stop api admin website`, lalu `npm run dev`.
 
 `npm run setup` tidak menimpa `.env` yang sudah ada. Bila port PostgreSQL
 dipakai aplikasi lain, sesuaikan port compose dan `DATABASE_URL` lokal.
@@ -135,27 +174,27 @@ akun yang sudah ada; slug/email duplikat akan ditolak.
 
 Prefix seluruh endpoint bisnis: `/api/v1`. Health berada di `/health`.
 
-| Endpoint | Operasi |
-| --- | --- |
-| `/auth/login`, `/auth/refresh`, `/auth/logout` | POST |
-| `/auth/me` | GET |
-| `/tenants` | POST, SUPER_ADMIN |
-| `/tenants/:id` | GET, tenant sendiri atau SUPER_ADMIN |
-| `/tenants/:id/settings` | PATCH `{principal_approval_required}` |
-| `/users` | GET daftar ringkas, POST akun dan role |
-| `/schools`, `/academic-years`, `/semesters`, `/grade-levels`, `/classes`, `/subjects` | GET list/detail, POST, PATCH |
-| `/students`, `/parents`, `/teachers`, `/staff`, `/student-guardians` | GET list/detail, POST, PATCH |
-| `/teacher-subjects`, `/class-subjects`, `/class-students`, `/timetables` | GET list/detail, POST, PATCH |
-| `/assessment-categories`, `/assessments` | GET list/detail, POST, PATCH |
-| `/attendance?class_id=...&date=YYYY-MM-DD` | GET sesi dan records |
-| `/attendance` | PUT `{class_id,semester_id,date,records:[{student_id,status,notes?}]}` |
-| `/grades?assessment_id=...` | GET nilai tersimpan |
-| `/grades` | PUT `{assessment_id,scores:[{student_id,score}]}` |
-| `/report-cards?class_id=...&semester_id=...` | GET raport sesuai akses |
-| `/report-cards/calculate` | POST `{class_id,semester_id,student_id}` |
-| `/report-cards/:id` | GET snapshot dan item |
-| `/report-cards/:id/review`, `/approve`, `/publish`, `/reopen` | POST `{notes?}` |
-| `/report-cards/:id/pdf` | GET PDF dengan bearer token |
+| Endpoint                                                                              | Operasi                                                                |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `/auth/login`, `/auth/refresh`, `/auth/logout`                                        | POST                                                                   |
+| `/auth/me`                                                                            | GET                                                                    |
+| `/tenants`                                                                            | POST, SUPER_ADMIN                                                      |
+| `/tenants/:id`                                                                        | GET, tenant sendiri atau SUPER_ADMIN                                   |
+| `/tenants/:id/settings`                                                               | PATCH `{principal_approval_required}`                                  |
+| `/users`                                                                              | GET daftar ringkas, POST akun dan role                                 |
+| `/schools`, `/academic-years`, `/semesters`, `/grade-levels`, `/classes`, `/subjects` | GET list/detail, POST, PATCH                                           |
+| `/students`, `/parents`, `/teachers`, `/staff`, `/student-guardians`                  | GET list/detail, POST, PATCH                                           |
+| `/teacher-subjects`, `/class-subjects`, `/class-students`, `/timetables`              | GET list/detail, POST, PATCH                                           |
+| `/assessment-categories`, `/assessments`                                              | GET list/detail, POST, PATCH                                           |
+| `/attendance?class_id=...&date=YYYY-MM-DD`                                            | GET sesi dan records                                                   |
+| `/attendance`                                                                         | PUT `{class_id,semester_id,date,records:[{student_id,status,notes?}]}` |
+| `/grades?assessment_id=...`                                                           | GET nilai tersimpan                                                    |
+| `/grades`                                                                             | PUT `{assessment_id,scores:[{student_id,score}]}`                      |
+| `/report-cards?class_id=...&semester_id=...`                                          | GET raport sesuai akses                                                |
+| `/report-cards/calculate`                                                             | POST `{class_id,semester_id,student_id}`                               |
+| `/report-cards/:id`                                                                   | GET snapshot dan item                                                  |
+| `/report-cards/:id/review`, `/approve`, `/publish`, `/reopen`                         | POST `{notes?}`                                                        |
+| `/report-cards/:id/pdf`                                                               | GET PDF dengan bearer token                                            |
 
 Resource list mendukung `page`, `limit` (maksimum 200), `search` pada nama,
 dan filter ID relasi seperti `class_id`, `semester_id`, `category_id`.
@@ -199,11 +238,10 @@ di `schema_migrations`. Query menggunakan parameter pg; transaksi mutasi per
 tenant memakai transaction advisory lock. Ini mengutamakan konsistensi pada
 V0.2; fine-grained locking dapat ditambahkan bila beban meningkat.
 
-Hasil verifikasi implementasi (7 September 2026): build API/admin dan typecheck
-lulus; 5 unit test, 19 integration test, dan 1 skenario UI Chromium lulus.
-Container API/admin/PostgreSQL/Redis/MinIO berjalan; `/health` mengembalikan
-`status: ok`, `database: connected`, `redis: connected`. PDF hasil integration
-test telah dirender dan diperiksa secara visual.
+Hasil verifikasi implementasi (9 September 2026): build API/admin/website dan
+typecheck lulus; 12 unit test, 43 integration test, serta 5 pengujian UI Chromium
+lulus. Detail lingkungan, cakupan, dan batas pemeriksaan ada di
+[VERIFICATION.md](VERIFICATION.md).
 
 Referensi implementasi: [NestJS controllers](https://docs.nestjs.com/controllers),
 [PostgreSQL locking](https://www.postgresql.org/docs/14/explicit-locking.html),

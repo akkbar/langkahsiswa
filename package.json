@@ -1,6 +1,6 @@
 {
   "name": "schoolapp",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -11,9 +11,9 @@
   },
   "scripts": {
     "setup": "node scripts/setup.mjs",
-    "dev": "concurrently -k -n api,admin \"npm run dev -w @schoolapp/api\" \"npm run dev -w @schoolapp/admin\"",
-    "build": "npm run build -w @schoolapp/api && npm run build -w @schoolapp/admin",
-    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/admin/tsconfig.json --noEmit",
+    "dev": "concurrently -k -n api,admin,website \"npm run dev -w @schoolapp/api\" \"npm run dev -w @schoolapp/admin\" \"npm run dev -w @schoolapp/website\"",
+    "build": "npm run build -w @schoolapp/api && npm run build -w @schoolapp/admin && npm run build -w @schoolapp/website",
+    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/admin/tsconfig.json --noEmit && tsc -p apps/website/tsconfig.json --noEmit",
     "db:migrate": "tsx apps/api/scripts/migrate.ts",
     "db:seed": "tsx apps/api/scripts/seed.ts",
     "test": "tsx --test apps/api/test/*.test.ts",
@@ -30,5 +30,10 @@
     "prettier": "^3.9.6",
     "tsx": "^4.19.3",
     "typescript": "~5.8.3"
+  },
+  "overrides": {
+    "@nestjs/platform-express@11.2.3": {
+      "multer": "2.3.0"
+    }
   }
 }

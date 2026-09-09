@@ -12,6 +12,7 @@ import {
 import { attendanceSchema, date, uuid } from "../../../packages/validation/src";
 import { AuthGuard, AuthRequest, allow } from "./auth";
 import { Database } from "./database";
+import { notifyStudent } from "./notifications";
 import {
   classSemester,
   editableGrades,
@@ -78,7 +79,7 @@ export class AttendanceController {
           [tenant, input.class_id, input.semester_id, input.date, req.actor.id],
         )
       ).rows[0];
-      for (const item of input.records)
+      for (const item of input.records) {
         await sql.query(
           `INSERT INTO attendance_records(tenant_id,session_id,student_id,status,notes) VALUES($1,$2,$3,$4,$5)
     ON CONFLICT(tenant_id,session_id,student_id) DO UPDATE SET status=EXCLUDED.status,notes=EXCLUDED.notes,source='MANUAL'`,
@@ -90,6 +91,22 @@ export class AttendanceController {
             item.notes || null,
           ],
         );
+        if (item.status === "ABSENT") {
+          await notifyStudent(
+            sql,
+            tenant,
+            item.student_id,
+            "Pemberitahuan ketidakhadiran",
+            `Siswa tercatat alpa pada ${input.date}.`,
+            {
+              type: "ATTENDANCE",
+              student_id: item.student_id,
+              date: input.date,
+            },
+            `attendance:${session.id}:${item.student_id}:ABSENT`,
+          );
+        }
+      }
       return {
         session,
         records: (
