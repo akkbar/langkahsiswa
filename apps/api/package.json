@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "tsx scripts/migrate.ts",
     "dev": "tsx watch --tsconfig tsconfig.json src/main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/apps/api/src/main.js"

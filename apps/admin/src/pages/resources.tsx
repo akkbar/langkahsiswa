@@ -45,14 +45,23 @@ export function ResourcePage({
     mode: "create" | "edit" | "detail";
   } | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
-  const writable = can(
-    user,
-    `${definition.permission}.${definition.permission === "student" ? "create" : "write"}`,
-  );
-  const editable = can(
-    user,
-    `${definition.permission}.${definition.permission === "student" ? "update" : "write"}`,
-  );
+  const gradeLevelsLocked =
+    resource === "grade-levels" &&
+    (catalog.schools || []).some((school) =>
+      ["SD", "SMP", "SMA"].includes(String(school.school_level)),
+    );
+  const writable =
+    !gradeLevelsLocked &&
+    can(
+      user,
+      `${definition.permission}.${definition.permission === "student" ? "create" : "write"}`,
+    );
+  const editable =
+    !gradeLevelsLocked &&
+    can(
+      user,
+      `${definition.permission}.${definition.permission === "student" ? "update" : "write"}`,
+    );
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -144,6 +153,12 @@ export function ResourcePage({
         )}
       </div>
       <ErrorBox error={!editor ? error : ""} />
+      {gradeLevelsLocked && (
+        <p className="notice">
+          Tingkat kelas dibuat otomatis berdasarkan jenjang sekolah dan tidak
+          dapat diubah manual.
+        </p>
+      )}
       <section className="card">
         <div className="toolbar">
           <strong>{result.total} data</strong>

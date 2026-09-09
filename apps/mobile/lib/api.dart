@@ -52,13 +52,19 @@ class SchoolApi {
     await storage.write(key: 'refresh_token', value: refreshToken);
   }
 
-  Future<void> login(String tenant, String email, String password) async {
+  Future<void> login(
+    String organizationCode,
+    String email,
+    String password, {
+    String accountType = 'SCHOOL_ADMIN',
+  }) async {
     await saveSession(
       await call(
         'auth/login',
         method: 'POST',
         body: {
-          'tenant_slug': tenant.trim(),
+          'organization_code': organizationCode.trim(),
+          'account_type': accountType,
           'email': email.trim().toLowerCase(),
           'password': password,
         },
@@ -68,16 +74,18 @@ class SchoolApi {
   }
 
   Future<void> googleLogin(
-    String tenant,
+    String organizationCode,
     String credential, {
     String? accountPassword,
+    String accountType = 'SCHOOL_ADMIN',
   }) async {
     await saveSession(
       await call(
         'auth/google',
         method: 'POST',
         body: {
-          'tenant_slug': tenant.trim(),
+          'organization_code': organizationCode.trim(),
+          'account_type': accountType,
           'credential': credential,
           if (accountPassword != null && accountPassword.isNotEmpty)
             'account_password': accountPassword,

@@ -21,6 +21,7 @@ export const fileCategories = [
   "PAYMENT_PROOF",
   "WEBSITE_IMAGE",
   "REPORT_CARD",
+  "SCHOOL_PHOTO",
   "OTHER",
 ] as const;
 

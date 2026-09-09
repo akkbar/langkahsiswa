@@ -1,8 +1,27 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const password = "LangkahSiswa!2026";
-async function login(page: Page, email = "admin@demo.langkahsiswa.id") {
+async function login(
+  page: Page,
+  email = "admin@demo.langkahsiswa.id",
+  accountType:
+    "Admin Sekolah" | "Siswa / Wali" | "Tenant Sekolah" = "Admin Sekolah",
+) {
   await page.goto("/");
+  const passwordField = page.getByLabel("Kata sandi", { exact: true });
+  await expect(passwordField).toHaveAttribute("type", "password");
+  await page.getByRole("button", { name: "Tampilkan kata sandi" }).click();
+  await expect(passwordField).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Sembunyikan kata sandi" }).click();
+  await expect(passwordField).toHaveAttribute("type", "password");
+  await expect(
+    page.getByRole("checkbox", { name: "Tetap masuk di perangkat ini" }),
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole("button", { name: "Masuk ke LangkahSiswa" }),
+  ).toHaveCSS("height", "40px");
+  if (accountType !== "Admin Sekolah")
+    await page.getByRole("button", { name: accountType }).click();
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Kata sandi", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Masuk ke LangkahSiswa" }).click();
@@ -36,15 +55,98 @@ test("light and dark themes persist on desktop and mobile", async ({
     fullPage: true,
   });
   await login(page);
+  await expect(
+    page.getByRole("link", { name: "Pengaturan Sekolah", exact: true }),
+  ).toHaveCount(0);
   await expect(page.locator(".nav-submenu")).toHaveCount(0);
   await page.getByRole("button", { name: "Data Sekolah" }).click();
   await expect(page.locator(".nav-submenu a")).toHaveText([
-    "Lokasi Sekolah",
+    "List Sekolah",
     "Guru dan Staff",
     "Mata Pelajaran",
     "Tingkat Kelas",
     "Kelas",
   ]);
+  await page.getByRole("link", { name: "List Sekolah", exact: true }).click();
+  const schoolCard = page.locator(".site-card").first();
+  await expect(schoolCard).toBeVisible();
+  await expect(schoolCard.locator(".thumbnail-menu-button")).toHaveCSS(
+    "width",
+    "34px",
+  );
+  await expect(schoolCard.locator(".thumbnail-menu-button")).toHaveCSS(
+    "height",
+    "34px",
+  );
+  const cardBox = await schoolCard.boundingBox();
+  expect(cardBox?.width).toBeGreaterThanOrEqual(350);
+  expect(cardBox?.width).toBeLessThanOrEqual(450);
+  await schoolCard.getByRole("button", { name: /^Edit / }).click();
+  const schoolDrawer = page.getByRole("dialog", { name: /SMP Nusantara/ });
+  await expect(schoolDrawer).toBeVisible();
+  const drawerBox = await schoolDrawer.boundingBox();
+  expect(drawerBox?.width).toBe(600);
+  await schoolDrawer.getByLabel("Naungan *").selectOption("KEMENAG");
+  await expect(schoolDrawer.getByLabel("Jenjang sekolah *")).toContainText(
+    "SMP (MTs)",
+  );
+  await expect(schoolDrawer.getByLabel("NSM *")).toBeVisible();
+  await expect(schoolDrawer.getByLabel("ID EMIS *")).toBeVisible();
+  await expect(schoolDrawer.getByLabel("NSS *")).toHaveCount(0);
+  await schoolDrawer.getByRole("button", { name: "Tutup" }).click();
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await expect(page.getByRole("group", { name: "Mode tampilan" })).toHaveCSS(
+    "height",
+    "40px",
+  );
+  await expect(
+    page.getByRole("button", { name: "Table", exact: true }),
+  ).toHaveCSS("height", "32px");
+  await expect(page.locator(".school-table")).toBeVisible();
+  await page
+    .locator(".school-table tbody tr")
+    .first()
+    .getByRole("button", { name: "Edit" })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: /SMP Nusantara/ }),
+  ).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Tutup" }).click();
+  await page.reload();
+  await expect(page.locator(".school-table")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Big Thumbnail", exact: true })
+    .click();
+  await expect(page.locator(".site-card").first()).toBeVisible();
+  await page.getByRole("link", { name: "Kelas", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Kelas", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("7A", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Tambah kelas" }).click();
+  const classDrawer = page.getByRole("dialog", { name: "Tambah kelas" });
+  await expect(classDrawer).toBeVisible();
+  expect((await classDrawer.boundingBox())?.width).toBe(600);
+  await expect(classDrawer.getByLabel("Tahun ajaran *")).toBeEnabled();
+  await expect(classDrawer.getByLabel("Tingkat kelas *")).toBeEnabled();
+  await expect(classDrawer.getByLabel("Nama kelas *")).toHaveAttribute(
+    "placeholder",
+    "Contoh: 7A",
+  );
+  await classDrawer.getByRole("button", { name: "Tutup" }).click();
+  await page.getByRole("button", { name: "Tampilan tabel" }).click();
+  await expect(page.locator(".class-table")).toBeVisible();
+  await page
+    .locator(".class-table tbody tr")
+    .first()
+    .getByRole("button", { name: "Edit" })
+    .click();
+  await expect(page.getByRole("dialog", { name: "Edit kelas" })).toBeVisible();
+  await expect(page.getByLabel("Tahun ajaran *")).toBeDisabled();
+  await expect(page.getByLabel("Tingkat kelas *")).toBeDisabled();
+  await page.getByRole("dialog").getByRole("button", { name: "Tutup" }).click();
+  await page.reload();
+  await expect(page.locator(".class-table")).toBeVisible();
   await page.getByRole("button", { name: "Data Sekolah" }).click();
   await page.getByRole("button", { name: "Pengaturan" }).click();
   await expect(
@@ -52,8 +154,32 @@ test("light and dark themes persist on desktop and mobile", async ({
       .locator(".nav-group")
       .filter({ hasText: "Pengaturan" })
       .locator(".nav-submenu a"),
-  ).toHaveText(["Audit & Keamanan", "Permission dan Role Setting"]);
+  ).toHaveText([
+    "Audit & Keamanan",
+    "Permission dan Role Setting",
+    "Management Berkas",
+  ]);
   await page.getByRole("button", { name: "Pengaturan" }).click();
+  const expectedGroups: Array<[string, string[]]> = [
+    [
+      "Administrasi",
+      ["Tahun Ajaran", "Semester", "Jadwal Pelajaran", "Bobot Penilaian"],
+    ],
+    ["Website", ["Website Sekolah", "Custom Domain"]],
+    ["PPDB", ["PPDB"]],
+    ["Komunikasi", ["Agenda Sekolah", "Notifikasi"]],
+    ["Keuangan", ["Tagihan Sekolah", "Dompet Siswa", "Kasir Kantin"]],
+  ];
+  for (const [group, menuItems] of expectedGroups) {
+    await page.getByRole("button", { name: group, exact: true }).click();
+    await expect(
+      page
+        .locator(".nav-group")
+        .filter({ has: page.getByRole("button", { name: group, exact: true }) })
+        .locator(".nav-submenu a"),
+    ).toHaveText(menuItems);
+    await page.getByRole("button", { name: group, exact: true }).click();
+  }
   await page.getByRole("link", { name: "Siswa", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Siswa", exact: true }),
@@ -189,6 +315,7 @@ test("public PPDB flows into enrollment and managed file archive", async ({
     .fill("admin@demo.langkahsiswa.id");
   await page.getByLabel("Kata sandi", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Masuk ke LangkahSiswa" }).click();
+  await page.getByRole("button", { name: "PPDB", exact: true }).click();
   await page.getByRole("link", { name: "PPDB", exact: true }).click();
   await page.getByRole("button", { name: new RegExp(applicantName) }).click();
   await page.getByRole("button", { name: "Verifikasi" }).click();
@@ -206,7 +333,8 @@ test("public PPDB flows into enrollment and managed file archive", async ({
   await page.getByRole("button", { name: "Buat data siswa" }).click();
   await expect(page.getByText("Pendaftar resmi menjadi siswa.")).toBeVisible();
 
-  await page.getByRole("link", { name: "Manajemen Berkas" }).click();
+  await page.getByRole("button", { name: "Pengaturan", exact: true }).click();
+  await page.getByRole("link", { name: "Management Berkas" }).click();
   await expect(page.getByText("akta-ui.png").first()).toBeVisible();
   await page.getByRole("button", { name: "Unggah berkas" }).click();
   await page
@@ -281,6 +409,7 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
   const browserErrors: string[] = [];
   page.on("pageerror", (e) => browserErrors.push(e.message));
   await login(page);
+  await page.getByRole("button", { name: "Keuangan", exact: true }).click();
   await page
     .getByRole("link", { name: "Tagihan Sekolah", exact: true })
     .click();
@@ -310,13 +439,14 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
   const parent = await parentContext.newPage();
   parent.on("pageerror", (e) => browserErrors.push(e.message));
   try {
-    await login(parent, email);
+    await login(parent, email, "Siswa / Wali");
     await expect(
       parent.getByRole("heading", { name: "Keluarga saya", exact: true }),
     ).toBeVisible();
     await expect(
       parent.getByRole("link", { name: "Kasir Kantin", exact: true }),
     ).toHaveCount(0);
+    await parent.getByRole("button", { name: "Keuangan", exact: true }).click();
     await parent
       .getByRole("link", { name: "Tagihan Sekolah", exact: true })
       .click();
@@ -506,6 +636,7 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
       ),
     ).toBe(true);
     await parent.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole("button", { name: "Komunikasi", exact: true }).click();
     await page
       .getByRole("link", { name: "Agenda Sekolah", exact: true })
       .click();
@@ -539,6 +670,9 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
         { exact: true },
       ),
     ).toBeVisible();
+    await parent
+      .getByRole("button", { name: "Komunikasi", exact: true })
+      .click();
     await parent.getByRole("link", { name: "Notifikasi", exact: true }).click();
     const notification = parent.locator("article").filter({
       has: parent.getByRole("heading", { name: title, exact: true }),
@@ -607,7 +741,7 @@ test("Google login handles first-time account linking with the current school co
     );
   });
   await page.goto("/");
-  await page.getByLabel("Kode sekolah", { exact: true }).fill("demo");
+  await page.getByLabel("Kode yayasan", { exact: true }).fill("demo");
   await page
     .getByRole("button", { name: "Masuk dengan Google", exact: true })
     .click();
@@ -622,10 +756,17 @@ test("Google login handles first-time account linking with the current school co
     page.getByRole("heading", { name: "Siswa", exact: true }),
   ).toBeVisible();
   expect(requests).toEqual([
-    { tenant_slug: "demo", credential: "test-credential" },
     {
-      tenant_slug: "demo",
+      organization_code: "demo",
+      account_type: "SCHOOL_ADMIN",
       credential: "test-credential",
+      remember: false,
+    },
+    {
+      organization_code: "demo",
+      account_type: "SCHOOL_ADMIN",
+      credential: "test-credential",
+      remember: false,
       account_password: password,
     },
   ]);

@@ -19,9 +19,27 @@ import {
   tenantSchema,
   uuid,
 } from "../../../packages/validation/src";
-import { Database } from "./database";
+import { Database, type Sql } from "./database";
 import { allow, AuthGuard, AuthRequest, createTenant } from "./auth";
 import { record, validateResource } from "./academic-policy";
+
+async function ensureGradeLevelIsCustom(
+  sql: Sql,
+  tenantId: string,
+  schoolId: string,
+) {
+  const school = (
+    await sql.query(
+      "SELECT school_level FROM schools WHERE tenant_id=$1 AND id=$2",
+      [tenantId, schoolId],
+    )
+  ).rows[0];
+  if (!school) throw new NotFoundException("Sekolah tidak ditemukan");
+  if (["SD", "SMP", "SMA"].includes(school.school_level))
+    throw new BadRequestException(
+      "Tingkat kelas SD, SMP, dan SMA dibuat otomatis dan tidak dapat diubah manual",
+    );
+}
 @Controller("api/v1/tenants")
 @UseGuards(AuthGuard)
 export class TenantsController {
@@ -143,6 +161,12 @@ export class ResourcesController {
     );
     const data = r.schema.strict().parse(body);
     return this.db.transaction(req.actor.tenant_id, async (sql) => {
+      if (key === "grade-levels")
+        await ensureGradeLevelIsCustom(
+          sql,
+          req.actor.tenant_id,
+          data.school_id,
+        );
       await validateResource(sql, key, req.actor, data);
       const keys = Object.keys(data);
       return (
@@ -170,6 +194,8 @@ export class ResourcesController {
       throw new BadRequestException("Tidak ada perubahan");
     return this.db.transaction(req.actor.tenant_id, async (sql) => {
       const old = await record(sql, r.table, req.actor.tenant_id, id);
+      if (key === "grade-levels")
+        await ensureGradeLevelIsCustom(sql, req.actor.tenant_id, old.school_id);
       for (const key of r.immutable || [])
         if (key in patch && patch[key] !== old[key])
           throw new BadRequestException(

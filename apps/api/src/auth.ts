@@ -19,7 +19,12 @@ import { compare, hash } from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
-import { Actor, Role, roles } from "../../../packages/shared-types/src";
+import {
+  AccountType,
+  Actor,
+  Role,
+  roles,
+} from "../../../packages/shared-types/src";
 import {
   loginSchema,
   tenantSchema,
@@ -146,6 +151,15 @@ export const rolePermissions: Record<Role, string[]> = {
     "site.read",
     "family.read",
   ],
+  CANTEEN_ADMIN: [
+    "student.read",
+    "finance.read",
+    "wallet.read",
+    "pos.write",
+    "event.read",
+    "notification.read",
+    "site.read",
+  ],
 };
 export function allow(actor: Actor, permission: string) {
   if (
@@ -159,11 +173,35 @@ export function isAdmin(actor: Actor) {
     actor.roles.includes("SUPER_ADMIN") || actor.roles.includes("SCHOOL_ADMIN")
   );
 }
+const accountLevels: Record<AccountType, Actor["account_level"]> = {
+  SCHOOL_ADMIN: "OPERATIONAL",
+  FAMILY: "FAMILY",
+  SCHOOL_TENANT: "TENANT",
+};
+const accountTypes: Record<Actor["account_level"], AccountType> = {
+  OPERATIONAL: "SCHOOL_ADMIN",
+  FAMILY: "FAMILY",
+  TENANT: "SCHOOL_TENANT",
+};
+const accountRealmMembership = `(a.account_level='OPERATIONAL' AND EXISTS(
+  SELECT 1 FROM operational_accounts realm WHERE realm.account_id=a.id
+)) OR (a.account_level='FAMILY' AND EXISTS(
+  SELECT 1 FROM family_accounts realm WHERE realm.account_id=a.id
+)) OR (a.account_level='TENANT' AND EXISTS(
+  SELECT 1 FROM tenant_accounts realm WHERE realm.account_id=a.id
+))`;
 export async function initializeRoles(sql: Sql) {
   for (const role of roles) {
-    await sql.query("INSERT INTO roles(id) VALUES($1) ON CONFLICT DO NOTHING", [
-      role,
-    ]);
+    const level =
+      role === "PARENT" || role === "STUDENT"
+        ? "FAMILY"
+        : role === "CANTEEN_ADMIN"
+          ? "TENANT"
+          : "OPERATIONAL";
+    await sql.query(
+      "INSERT INTO roles(id,account_level) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET account_level=excluded.account_level",
+      [role, level],
+    );
     for (const permission of rolePermissions[role]) {
       await sql.query(
         "INSERT INTO permissions(id) VALUES($1) ON CONFLICT DO NOTHING",
@@ -244,6 +282,7 @@ export class AuthService {
          JOIN organizations o ON o.id=os.organization_id
          JOIN accounts a ON a.id=u.account_id
          WHERE u.id=$1 AND u.tenant_id=$2 AND u.active AND a.active
+         AND (${accountRealmMembership})
          AND t.status='ACTIVE' AND o.status='ACTIVE'`,
         [userId, tenantId],
       )
@@ -257,6 +296,7 @@ export class AuthService {
     ).rows;
     return {
       ...user,
+      account_type: accountTypes[user.account_level as Actor["account_level"]],
       roles: [...new Set(grants.map((g) => g.role_id))],
       permissions: [...new Set(grants.map((g) => g.permission_id))],
     };
@@ -277,6 +317,16 @@ export class AuthService {
     const headerId = header ? uuid.parse(header) : undefined;
     const bySlug = slug
       ? (
+          await this.db.query(
+            `SELECT t.id FROM organizations o
+             JOIN organization_sites os ON os.organization_id=o.id
+             JOIN tenants t ON t.id=os.tenant_id
+             WHERE o.slug=$1 AND o.status='ACTIVE' AND t.status='ACTIVE'
+             ORDER BY os.is_primary DESC,t.created_at LIMIT 1`,
+            [slug],
+          )
+        ).rows[0]?.id ||
+        (
           await this.db.query(
             "SELECT id FROM tenants WHERE slug=$1 AND status='ACTIVE'",
             [slug],
@@ -383,14 +433,23 @@ export class AuthController {
     @Inject(GoogleIdentityVerifier)
     private readonly google: GoogleIdentityVerifier,
   ) {}
-  private cookie(res: Response, value: string) {
-    res.cookie("langkahsiswa_refresh", value, {
+  private cookie(res: Response, value: string, remember = false) {
+    const base = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "strict" as const,
       path: "/api/v1/auth",
-      maxAge: 7 * 86400000,
+    };
+    res.cookie("langkahsiswa_refresh", value, {
+      ...base,
+      ...(remember ? { maxAge: 7 * 86400000 } : {}),
     });
+    if (remember)
+      res.cookie("langkahsiswa_remember", "1", {
+        ...base,
+        maxAge: 7 * 86400000,
+      });
+    else res.clearCookie("langkahsiswa_remember", { path: base.path });
   }
   private throttle(req: Request) {
     const now = Date.now();
@@ -421,27 +480,51 @@ export class AuthController {
     const input = z
       .object({
         tenant_slug: z.string().min(1).max(80).optional(),
+        organization_code: z.string().min(1).max(80).optional(),
+        account_type: z
+          .enum(["SCHOOL_ADMIN", "FAMILY", "SCHOOL_TENANT"])
+          .optional(),
         credential: z.string().min(20).max(10000),
         account_password: z.string().min(1).max(200).optional(),
+        remember: z.boolean().optional().default(false),
       })
       .strict()
       .parse(body);
-    const tenantId = await this.auth.resolveTenant(req, input.tenant_slug);
-    if (!tenantId) throw new UnauthorizedException("Sekolah wajib ditentukan");
+    const organizationCode = (
+      input.organization_code ||
+      input.tenant_slug ||
+      ""
+    ).toLowerCase();
+    const tenantId = await this.auth.resolveTenant(req, organizationCode);
+    if (!tenantId) throw new UnauthorizedException("Yayasan wajib ditentukan");
+    const accountLevel = input.account_type
+      ? accountLevels[input.account_type]
+      : null;
     const identity = await this.google.verify(input.credential);
     const result = await this.auth.db.transaction(tenantId, async (sql) => {
       const linked = (
         await sql.query(
-          "SELECT u.* FROM user_identities i JOIN users u ON u.tenant_id=i.tenant_id AND u.id=i.user_id JOIN tenants t ON t.id=u.tenant_id WHERE i.tenant_id=$1 AND i.provider='GOOGLE' AND i.subject=$2 AND u.active AND t.status='ACTIVE'",
-          [tenantId, identity.subject],
+          `SELECT u.* FROM user_identities i
+           JOIN users u ON u.tenant_id=i.tenant_id AND u.id=i.user_id
+           JOIN accounts a ON a.id=u.account_id
+           JOIN tenants t ON t.id=u.tenant_id
+           WHERE i.tenant_id=$1 AND i.provider='GOOGLE' AND i.subject=$2
+             AND ($3::text IS NULL OR a.account_level=$3) AND (${accountRealmMembership})
+             AND u.active AND a.active AND t.status='ACTIVE'`,
+          [tenantId, identity.subject, accountLevel],
         )
       ).rows[0];
       let user = linked;
       if (!user) {
         user = (
           await sql.query(
-            "SELECT u.* FROM users u JOIN tenants t ON t.id=u.tenant_id WHERE u.tenant_id=$1 AND u.email=$2 AND u.active AND t.status='ACTIVE'",
-            [tenantId, identity.email],
+            `SELECT u.* FROM users u JOIN accounts a ON a.id=u.account_id
+             JOIN tenants t ON t.id=u.tenant_id
+             WHERE u.tenant_id=$1 AND u.email=$2
+               AND ($3::text IS NULL OR a.account_level=$3)
+               AND (${accountRealmMembership})
+               AND u.active AND a.active AND t.status='ACTIVE'`,
+            [tenantId, identity.email, accountLevel],
           )
         ).rows[0];
         if (!user)
@@ -487,7 +570,7 @@ export class AuthController {
         req.header("user-agent") || null,
       ],
     );
-    this.cookie(res, result.refresh_token);
+    this.cookie(res, result.refresh_token, input.remember);
     return result;
   }
   @Post("login") async login(
@@ -497,12 +580,30 @@ export class AuthController {
   ) {
     this.throttle(req);
     const input = loginSchema.parse(body);
-    const tenantId = await this.auth.resolveTenant(req, input.tenant_slug);
-    if (!tenantId) throw new UnauthorizedException("Sekolah wajib ditentukan");
+    const organizationCode = (
+      input.organization_code ||
+      input.tenant_slug ||
+      ""
+    ).toLowerCase();
+    const tenantId = await this.auth.resolveTenant(req, organizationCode);
+    if (!tenantId) throw new UnauthorizedException("Yayasan wajib ditentukan");
+    const accountLevel = input.account_type
+      ? accountLevels[input.account_type]
+      : null;
     const user = (
       await this.auth.db.query(
-        "SELECT u.* FROM users u JOIN tenants t ON t.id=u.tenant_id WHERE u.tenant_id=$1 AND u.email=$2 AND u.active AND t.status='ACTIVE'",
-        [tenantId, input.email],
+        `SELECT u.* FROM organization_sites requested
+         JOIN organization_sites available
+           ON available.organization_id=requested.organization_id
+         JOIN users u ON u.tenant_id=available.tenant_id
+         JOIN accounts a ON a.id=u.account_id
+         JOIN tenants t ON t.id=u.tenant_id
+         WHERE requested.tenant_id=$1 AND u.email=$2
+           AND ($3::text IS NULL OR a.account_level=$3)
+           AND (${accountRealmMembership})
+           AND u.active AND a.active AND t.status='ACTIVE'
+         ORDER BY available.is_primary DESC,u.created_at LIMIT 1`,
+        [tenantId, input.email, accountLevel],
       )
     ).rows[0];
     if (!user || !(await compare(input.password, user.password_hash))) {
@@ -517,22 +618,27 @@ export class AuthController {
       );
       throw new UnauthorizedException("Sekolah atau kredensial tidak valid");
     }
-    const tokens = await this.auth.db.transaction(tenantId, (sql) =>
-      this.auth.tokens(sql, user.id, tenantId, req),
+    const authenticatedTenantId = user.tenant_id;
+    const tokens = await this.auth.db.transaction(
+      authenticatedTenantId,
+      (sql) => this.auth.tokens(sql, user.id, authenticatedTenantId, req),
     );
     await this.auth.db.query(
       "INSERT INTO login_history(tenant_id,user_id,email,provider,success,ip_address,user_agent) VALUES($1,$2,$3,'PASSWORD',true,$4,$5)",
       [
-        tenantId,
+        authenticatedTenantId,
         user.id,
         user.email,
         req.ip || null,
         req.header("user-agent") || null,
       ],
     );
-    this.cookie(res, tokens.refresh_token);
+    this.cookie(res, tokens.refresh_token, input.remember);
     res.setHeader("Cache-Control", "no-store");
-    return { ...tokens, user: await this.auth.actor(user.id, tenantId) };
+    return {
+      ...tokens,
+      user: await this.auth.actor(user.id, authenticatedTenantId),
+    };
   }
   @Post("refresh") async refresh(
     @Req() req: Request,
@@ -592,7 +698,11 @@ export class AuthController {
         req.header("user-agent") || null,
       ],
     );
-    this.cookie(res, result.refresh_token);
+    this.cookie(
+      res,
+      result.refresh_token,
+      req.cookies?.langkahsiswa_remember === "1",
+    );
     res.setHeader("Cache-Control", "no-store");
     return result;
   }
@@ -618,6 +728,7 @@ export class AuthController {
       );
     }
     res.clearCookie("langkahsiswa_refresh", { path: "/api/v1/auth" });
+    res.clearCookie("langkahsiswa_remember", { path: "/api/v1/auth" });
     return { ok: true };
   }
   @Get("me") @UseGuards(AuthGuard) me(@Req() req: AuthRequest) {
@@ -646,6 +757,13 @@ export class UsersController {
     allow(req.actor, "user.write");
     const input = userSchema.parse(body);
     return this.db.transaction(req.actor.tenant_id, async (sql) => {
+      if (
+        input.roles.includes("SUPER_ADMIN") &&
+        !req.actor.roles.includes("SUPER_ADMIN")
+      )
+        throw new BadRequestException(
+          "Hanya super admin yang dapat memberikan role SUPER_ADMIN",
+        );
       const familyRoles = input.roles.filter((role) =>
         ["PARENT", "STUDENT"].includes(role),
       );
@@ -653,7 +771,26 @@ export class UsersController {
         throw new BadRequestException(
           "Role operational dan keluarga tidak dapat digabung dalam satu akun",
         );
-      const accountLevel = familyRoles.length ? "FAMILY" : "OPERATIONAL";
+      const requestedType =
+        input.account_type ||
+        (familyRoles.length
+          ? "FAMILY"
+          : input.roles.includes("CANTEEN_ADMIN")
+            ? "SCHOOL_TENANT"
+            : "SCHOOL_ADMIN");
+      const accountLevel = accountLevels[requestedType];
+      const configuredRoles = (
+        await sql.query(
+          "SELECT id,account_level FROM roles WHERE id=ANY($1::text[])",
+          [input.roles],
+        )
+      ).rows;
+      if (configuredRoles.length !== new Set(input.roles).size)
+        throw new BadRequestException("Role belum terdaftar");
+      if (configuredRoles.some((role) => role.account_level !== accountLevel))
+        throw new BadRequestException(
+          "Role dan jenis akun harus berada pada ruang akses yang sama",
+        );
       const account = (
         await sql.query(
           "INSERT INTO accounts(name,email,account_level) VALUES($1,$2,$3) ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id,account_level",
@@ -669,7 +806,7 @@ export class UsersController {
           "INSERT INTO family_accounts(account_id,created_via) VALUES($1,'SCHOOL_ADMIN') ON CONFLICT DO NOTHING",
           [account.id],
         );
-      else
+      else if (accountLevel === "OPERATIONAL")
         await sql.query(
           "INSERT INTO operational_accounts(account_id,position) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [
@@ -684,6 +821,11 @@ export class UsersController {
                     ? "TEACHER"
                     : "STAFF",
           ],
+        );
+      else
+        await sql.query(
+          "INSERT INTO tenant_accounts(account_id,tenant_kind) VALUES($1,'CANTEEN') ON CONFLICT DO NOTHING",
+          [account.id],
         );
       const membership = (
         await sql.query(

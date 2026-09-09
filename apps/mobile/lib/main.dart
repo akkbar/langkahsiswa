@@ -166,6 +166,7 @@ class _LoginPageState extends State<LoginPage> {
   final form = GlobalKey<FormState>();
   bool busy = false;
   bool googleReady = false;
+  String accountType = 'SCHOOL_ADMIN';
   String? error;
   static bool googleInitialized = false;
   @override
@@ -203,7 +204,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> submit({bool google = false}) async {
     if (google ? tenant.text.trim().isEmpty : !form.currentState!.validate()) {
-      if (google) setState(() => error = 'Kode sekolah wajib diisi.');
+      if (google) setState(() => error = 'Kode yayasan wajib diisi.');
       return;
     }
     setState(() {
@@ -221,9 +222,15 @@ class _LoginPageState extends State<LoginPage> {
           tenant.text,
           idToken,
           accountPassword: password.text,
+          accountType: accountType,
         );
       } else {
-        await widget.api.login(tenant.text, email.text, password.text);
+        await widget.api.login(
+          tenant.text,
+          email.text,
+          password.text,
+          accountType: accountType,
+        );
       }
       if (mounted) widget.onLogin();
     } catch (e) {
@@ -271,9 +278,33 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 8),
                 const Text('Satu tempat untuk mengikuti kegiatan sekolah.'),
                 const SizedBox(height: 28),
+                DropdownButtonFormField<String>(
+                  initialValue: accountType,
+                  decoration: const InputDecoration(labelText: 'Jenis akun'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'SCHOOL_ADMIN',
+                      child: Text('Admin Sekolah'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'FAMILY',
+                      child: Text('Siswa / Wali'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'SCHOOL_TENANT',
+                      child: Text('Tenant Sekolah'),
+                    ),
+                  ],
+                  onChanged: busy
+                      ? null
+                      : (value) => setState(
+                          () => accountType = value ?? 'SCHOOL_ADMIN',
+                        ),
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: tenant,
-                  decoration: const InputDecoration(labelText: 'Kode sekolah'),
+                  decoration: const InputDecoration(labelText: 'Kode yayasan'),
                   validator: requiredText,
                 ),
                 const SizedBox(height: 16),

@@ -241,6 +241,22 @@ export async function validateResource(
       throw new BadRequestException(
         "Tingkat dan tahun ajaran harus satu sekolah",
       );
+    if (
+      (
+        await sql.query(
+          "SELECT 1 FROM classes WHERE tenant_id=$1 AND academic_year_id=$2 AND lower(name)=lower($3) AND id<>$4",
+          [
+            tenant,
+            data.academic_year_id,
+            data.name,
+            id || "00000000-0000-0000-0000-000000000000",
+          ],
+        )
+      ).rowCount
+    )
+      throw new ConflictException(
+        "Nama kelas sudah digunakan pada tahun ajaran ini",
+      );
   }
   if (key === "class-subjects") {
     const { cls } = await classSemester(

@@ -16,7 +16,8 @@ void main() {
         client: MockClient((request) async {
           expect(request.url.path, '/api/v1/auth/login');
           expect(jsonDecode(request.body), {
-            'tenant_slug': 'demo',
+            'organization_code': 'demo',
+            'account_type': 'SCHOOL_ADMIN',
             'email': 'wali@school.test',
             'password': 'secret',
           });
@@ -112,7 +113,8 @@ void main() {
       client: MockClient((request) async {
         expect(request.url.path, '/auth/google');
         expect(jsonDecode(request.body), {
-          'tenant_slug': 'demo',
+          'organization_code': 'demo',
+          'account_type': 'SCHOOL_ADMIN',
           'credential': 'google-id-token',
         });
         return http.Response(
@@ -131,7 +133,8 @@ void main() {
         baseUrl: 'https://school.test',
         client: MockClient((request) async {
           expect(jsonDecode(request.body), {
-            'tenant_slug': 'demo',
+            'organization_code': 'demo',
+            'account_type': 'SCHOOL_ADMIN',
             'credential': 'google-id-token',
             'account_password': 'school-password',
           });

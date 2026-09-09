@@ -3,6 +3,7 @@ import type { Actor } from "../../../../packages/shared-types/src";
 import { ErrorBox } from "../components";
 import { api, send, setToken } from "../api";
 import { ThemeToggle } from "../theme";
+import type { AccountType } from "../../../../packages/shared-types/src";
 type GoogleId = {
   initialize: (options: {
     client_id: string;
@@ -44,10 +45,13 @@ function loadGoogle() {
 }
 export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
   const [form, setForm] = useState({
-    tenant_slug: "demo",
+    organization_code: "demo",
+    account_type: "SCHOOL_ADMIN" as AccountType,
     email: "",
     password: "",
+    remember: false,
   });
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [registerMode, setRegisterMode] = useState(false);
   const [registration, setRegistration] = useState({
     tenant_slug: "demo",
@@ -62,21 +66,25 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
   const [linkCredential, setLinkCredential] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
   const googleButton = useRef<HTMLDivElement>(null);
-  const school = useRef(form.tenant_slug);
-  school.current = form.tenant_slug;
+  const organization = useRef(form.organization_code);
+  organization.current = form.organization_code;
+  const accountType = useRef(form.account_type);
+  accountType.current = form.account_type;
   const loginCallback = useRef(onLogin);
   loginCallback.current = onLogin;
   async function googleLogin(credential: string, account_password?: string) {
-    if (!school.current.trim()) {
-      setError("Isi kode sekolah sebelum masuk dengan Google.");
+    if (!organization.current.trim()) {
+      setError("Isi kode yayasan sebelum masuk dengan Google.");
       return;
     }
     setBusy(true);
     setError("");
     try {
       const data = await send("auth/google", {
-        tenant_slug: school.current.trim(),
+        organization_code: organization.current.trim(),
+        account_type: accountType.current,
         credential,
+        remember: form.remember,
         ...(account_password ? { account_password } : {}),
       });
       setToken(data.access_token);
@@ -182,17 +190,42 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
             <span className="eyebrow">SELAMAT DATANG</span>
             <h2>Masuk ke sekolah Anda</h2>
             <p className="muted">
-              Gunakan akun yang diberikan administrator sekolah.
+              Pilih ruang akun, lalu gunakan kredensial yang sesuai.
             </p>
             <ErrorBox error={error} />
+            <div
+              className="account-type-switch"
+              role="group"
+              aria-label="Jenis akun"
+            >
+              {[
+                ["SCHOOL_ADMIN", "Admin Sekolah"],
+                ["FAMILY", "Siswa / Wali"],
+                ["SCHOOL_TENANT", "Tenant Sekolah"],
+              ].map(([value, title]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={form.account_type === value ? "active" : ""}
+                  aria-pressed={form.account_type === value}
+                  onClick={() => {
+                    setForm({ ...form, account_type: value as AccountType });
+                    setLinkCredential("");
+                    setError("");
+                  }}
+                >
+                  {title}
+                </button>
+              ))}
+            </div>
             <label>
-              Kode sekolah
+              Kode yayasan
               <input
                 autoComplete="organization"
                 required
-                value={form.tenant_slug}
+                value={form.organization_code}
                 onChange={(e) => {
-                  setForm({ ...form, tenant_slug: e.target.value });
+                  setForm({ ...form, organization_code: e.target.value });
                   setLinkCredential("");
                 }}
               />
@@ -208,15 +241,52 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
             </label>
-            <label>
-              Kata sandi
+            <label className="password-label">
+              <span>Kata sandi</span>
+              <div className="password-field">
+                <input
+                  aria-label="Kata sandi"
+                  type={passwordVisible ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                />
+                <button
+                  type="button"
+                  className="password-visibility"
+                  aria-label={
+                    passwordVisible
+                      ? "Sembunyikan kata sandi"
+                      : "Tampilkan kata sandi"
+                  }
+                  aria-pressed={passwordVisible}
+                  onClick={() => setPasswordVisible(!passwordVisible)}
+                >
+                  {passwordVisible ? (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.3A10.8 10.8 0 0112 4c5.5 0 9 6 9 6a15.8 15.8 0 01-2.4 3.2M6.2 6.2C4.2 7.7 3 10 3 10s3.5 6 9 6a9.7 9.7 0 004-.8" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 10s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" />
+                      <circle cx="12" cy="10" r="2.5" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </label>
+            <label className="check login-remember">
               <input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                type="checkbox"
+                checked={form.remember}
+                onChange={(event) =>
+                  setForm({ ...form, remember: event.target.checked })
+                }
               />
+              Tetap masuk di perangkat ini
             </label>
             <button className="primary" disabled={busy}>
               {busy ? "Memeriksa akun…" : "Masuk ke LangkahSiswa →"}
@@ -247,7 +317,7 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
             </p>
             <ErrorBox error={error} />
             <label>
-              Kode sekolah
+              Kode yayasan
               <input
                 required
                 value={registration.tenant_slug}

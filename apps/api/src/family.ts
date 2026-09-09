@@ -78,11 +78,15 @@ export class PublicFamilyController {
     const input = parentRegistration.parse(body);
     const tenant = (
       await this.db.query(
-        "SELECT id FROM tenants WHERE slug=$1 AND status='ACTIVE'",
+        `SELECT t.id FROM organizations o
+         JOIN organization_sites os ON os.organization_id=o.id
+         JOIN tenants t ON t.id=os.tenant_id
+         WHERE o.slug=$1 AND o.status='ACTIVE' AND t.status='ACTIVE'
+         ORDER BY os.is_primary DESC,t.created_at LIMIT 1`,
         [input.tenant_slug.toLowerCase()],
       )
     ).rows[0];
-    if (!tenant) throw new NotFoundException("Sekolah tidak ditemukan");
+    if (!tenant) throw new NotFoundException("Yayasan tidak ditemukan");
     const result = await this.db.transaction(tenant.id, async (sql) => {
       const existing = (
         await sql.query("SELECT id FROM accounts WHERE email=$1", [input.email])

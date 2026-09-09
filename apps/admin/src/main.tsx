@@ -35,13 +35,47 @@ import {
   SecurityPage,
 } from "./pages/operations";
 import { DashboardPage, SitesPage } from "./pages/dashboard";
+import { ClassesPage } from "./pages/classes";
 import { FamilyPage } from "./pages/family";
 const homeRoute = (user: Actor) =>
-  user.roles.includes("PARENT")
-    ? "family"
-    : user.roles.includes("STUDENT")
-      ? "portal"
-      : "dashboard";
+  user.account_type === "SCHOOL_TENANT"
+    ? "pos"
+    : user.roles.includes("PARENT")
+      ? "family"
+      : user.roles.includes("STUDENT")
+        ? "portal"
+        : "dashboard";
+
+const groupedNavigation: Record<string, string[]> = {
+  Administrasi: [
+    "academic-years",
+    "semesters",
+    "timetables",
+    "assessment-categories",
+  ],
+  Website: ["website", "domains"],
+  PPDB: ["admissions"],
+  Pengaturan: ["security", "users", "files"],
+  Komunikasi: ["events", "notifications"],
+  Keuangan: ["billing", "wallet", "pos"],
+  "Data Sekolah": [
+    "sites",
+    "school-team",
+    "subjects",
+    "grade-levels",
+    "classes",
+  ],
+};
+
+function initiallyOpenGroups() {
+  const route = location.hash.slice(1);
+  return Object.fromEntries(
+    Object.entries(groupedNavigation).map(([group, keys]) => [
+      group,
+      keys.includes(route),
+    ]),
+  );
+}
 function SchoolTeamPage({
   user,
   catalog,
@@ -92,14 +126,8 @@ function Workspace({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [schoolDataOpen, setSchoolDataOpen] = useState(() =>
-    ["sites", "school-team", "subjects", "grade-levels", "classes"].includes(
-      location.hash.slice(1),
-    ),
-  );
-  const [settingsOpen, setSettingsOpen] = useState(() =>
-    ["security", "users"].includes(location.hash.slice(1)),
-  );
+  const [openGroups, setOpenGroups] =
+    useState<Record<string, boolean>>(initiallyOpenGroups);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [accountDetailOpen, setAccountDetailOpen] = useState(false);
   const [sites, setSites] = useState<SiteSummary[]>([]);
@@ -146,17 +174,11 @@ function Workspace({
     const change = () => {
       const nextRoute = location.hash.slice(1);
       setRoute(nextRoute);
-      if (
-        [
-          "sites",
-          "school-team",
-          "subjects",
-          "grade-levels",
-          "classes",
-        ].includes(nextRoute)
-      )
-        setSchoolDataOpen(true);
-      if (["security", "users"].includes(nextRoute)) setSettingsOpen(true);
+      const activeGroup = Object.entries(groupedNavigation).find(([, keys]) =>
+        keys.includes(nextRoute),
+      )?.[0];
+      if (activeGroup)
+        setOpenGroups((current) => ({ ...current, [activeGroup]: true }));
       setMobileOpen(false);
     };
     window.addEventListener("hashchange", change);
@@ -209,7 +231,7 @@ function Workspace({
   ];
   const links = [
     ...Object.entries(resources)
-      .filter(([key]) => !["teachers", "staff"].includes(key))
+      .filter(([key]) => !["schools", "teachers", "staff"].includes(key))
       .map(([key, r]) => ({
         key,
         title: r.title,
@@ -285,28 +307,28 @@ function Workspace({
     links.push({
       key: "admissions",
       title: "PPDB",
-      group: "Administrasi",
+      group: "PPDB",
       permission: "",
     });
   if (can(user, "file.read"))
     links.push({
       key: "files",
-      title: "Manajemen Berkas",
-      group: "Administrasi",
+      title: "Management Berkas",
+      group: "Pengaturan",
       permission: "",
     });
   if (can(user, "website.read"))
     links.push({
       key: "website",
       title: "Website Sekolah",
-      group: "Publikasi",
+      group: "Website",
       permission: "",
     });
   if (can(user, "domain.read"))
     links.push({
       key: "domains",
       title: "Custom Domain",
-      group: "Publikasi",
+      group: "Website",
       permission: "",
     });
   if (can(user, "boarding.read"))
@@ -333,7 +355,7 @@ function Workspace({
   if (can(user, "site.read"))
     links.push({
       key: "sites",
-      title: "Lokasi Sekolah",
+      title: "List Sekolah",
       group: "Data Sekolah",
       permission: "",
     });
@@ -343,6 +365,23 @@ function Workspace({
     group: "Dashboard",
     permission: "",
   });
+  const realmRoutes: Record<Actor["account_type"], Set<string> | null> = {
+    SCHOOL_ADMIN: null,
+    FAMILY: new Set([
+      "family",
+      "portal",
+      "billing",
+      "wallet",
+      "events",
+      "notifications",
+      "dashboard",
+    ]),
+    SCHOOL_TENANT: new Set(["dashboard", "pos"]),
+  };
+  const routesForRealm = realmRoutes[user.account_type];
+  if (routesForRealm)
+    for (let index = links.length - 1; index >= 0; index--)
+      if (!routesForRealm.has(links[index].key)) links.splice(index, 1);
   const dataKeys = new Set([
     "sites",
     "school-team",
@@ -350,26 +389,20 @@ function Workspace({
     "grade-levels",
     "classes",
   ]);
-  const administrationKeys = new Set([
-    "schools",
-    "academic-years",
-    "semesters",
+  const administrationKeys = new Set(groupedNavigation.Administrasi);
+  const settingsKeys = new Set(groupedNavigation.Pengaturan);
+  const academicKeys = new Set([
     "students",
     "parents",
     "student-guardians",
-    "settings",
-  ]);
-  const settingsKeys = new Set(["security", "users"]);
-  const academicKeys = new Set([
     "teacher-subjects",
     "class-subjects",
     "class-students",
-    "timetables",
     "attendance",
-    "assessment-categories",
     "assessments",
     "grades",
     "report-cards",
+    "settings",
   ]);
   for (const link of links) {
     if (link.key === "dashboard") link.group = "Dashboard";
@@ -377,6 +410,9 @@ function Workspace({
     else if (dataKeys.has(link.key)) link.group = "Data Sekolah";
     else if (settingsKeys.has(link.key)) link.group = "Pengaturan";
     else if (administrationKeys.has(link.key)) link.group = "Administrasi";
+    else if (groupedNavigation.Website.includes(link.key))
+      link.group = "Website";
+    else if (groupedNavigation.PPDB.includes(link.key)) link.group = "PPDB";
     else if (academicKeys.has(link.key)) link.group = "Akademik";
     else if (["billing", "wallet", "pos"].includes(link.key))
       link.group = "Keuangan";
@@ -384,7 +420,7 @@ function Workspace({
       link.group = "Operasional";
     else if (["events", "notifications"].includes(link.key))
       link.group = "Komunikasi";
-    else link.group = "Publikasi & PPDB";
+    else link.group = "Publikasi";
   }
   const groupOrder = [
     "Dashboard",
@@ -393,7 +429,9 @@ function Workspace({
     "Keuangan",
     "Operasional",
     "Komunikasi",
-    "Publikasi & PPDB",
+    "Website",
+    "PPDB",
+    "Publikasi",
     "Administrasi",
     "Pengaturan",
     "Data Sekolah",
@@ -402,14 +440,6 @@ function Workspace({
     links.some((link) => link.group === group),
   );
   const allowed = links.some((l) => l.key === route);
-  const dataSchoolOrder = [
-    "sites",
-    "school-team",
-    "subjects",
-    "grade-levels",
-    "classes",
-  ];
-  const settingsOrder = ["security", "users"];
   const activeSchool = catalog.schools?.[0];
   const schoolName = String(
     activeSchool?.name || user.tenant_name || "Sekolah Anda",
@@ -449,15 +479,10 @@ function Workspace({
           {groups.map((group) => {
             const groupLinks = links
               .filter((link) => link.group === group)
-              .sort((a, b) =>
-                group === "Data Sekolah"
-                  ? dataSchoolOrder.indexOf(a.key) -
-                    dataSchoolOrder.indexOf(b.key)
-                  : group === "Pengaturan"
-                    ? settingsOrder.indexOf(a.key) -
-                      settingsOrder.indexOf(b.key)
-                    : 0,
-              );
+              .sort((a, b) => {
+                const order = groupedNavigation[group];
+                return order ? order.indexOf(a.key) - order.indexOf(b.key) : 0;
+              });
             const items = groupLinks.map((link) => (
               <a
                 className={route === link.key ? "active" : ""}
@@ -471,33 +496,26 @@ function Workspace({
             ));
             return (
               <div className="nav-group" key={group}>
-                {group === "Data Sekolah" ? (
+                {groupedNavigation[group] ? (
                   <>
                     <button
-                      className={`nav-group-toggle ${dataKeys.has(route) ? "current" : ""}`}
-                      aria-expanded={schoolDataOpen}
-                      onClick={() => setSchoolDataOpen(!schoolDataOpen)}
+                      className={`nav-group-toggle ${groupedNavigation[group].includes(route) ? "current" : ""}`}
+                      aria-expanded={!!openGroups[group]}
+                      onClick={() =>
+                        setOpenGroups((current) => ({
+                          ...current,
+                          [group]: !current[group],
+                        }))
+                      }
                     >
-                      <span>Data Sekolah</span>
+                      <span>{group}</span>
                       <span aria-hidden="true">
-                        {schoolDataOpen ? "−" : "+"}
+                        {openGroups[group] ? "−" : "+"}
                       </span>
                     </button>
-                    {schoolDataOpen && (
+                    {openGroups[group] && (
                       <div className="nav-submenu">{items}</div>
                     )}
-                  </>
-                ) : group === "Pengaturan" ? (
-                  <>
-                    <button
-                      className={`nav-group-toggle ${settingsKeys.has(route) ? "current" : ""}`}
-                      aria-expanded={settingsOpen}
-                      onClick={() => setSettingsOpen(!settingsOpen)}
-                    >
-                      <span>Pengaturan</span>
-                      <span aria-hidden="true">{settingsOpen ? "−" : "+"}</span>
-                    </button>
-                    {settingsOpen && <div className="nav-submenu">{items}</div>}
                   </>
                 ) : (
                   <>
@@ -634,13 +652,17 @@ function Workspace({
             <SitesPage
               user={user}
               sites={sites}
-              reload={loadSites}
+              reload={async () => {
+                await Promise.all([loadSites(), refresh()]);
+              }}
               switchSite={switchSite}
             />
           ) : route === "family" ? (
             <FamilyPage />
           ) : route === "school-team" ? (
             <SchoolTeamPage user={user} catalog={catalog} refresh={refresh} />
+          ) : route === "classes" ? (
+            <ClassesPage user={user} catalog={catalog} refresh={refresh} />
           ) : resources[route] ? (
             <ResourcePage
               key={route}

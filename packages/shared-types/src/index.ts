@@ -9,8 +9,10 @@ export const roles = [
   "FOUNDATION_HEAD",
   "PARENT",
   "STUDENT",
+  "CANTEEN_ADMIN",
 ] as const;
 export type Role = (typeof roles)[number];
+export type AccountType = "SCHOOL_ADMIN" | "FAMILY" | "SCHOOL_TENANT";
 export const attendanceStatuses = [
   "PRESENT",
   "LATE",
@@ -23,7 +25,8 @@ export interface Actor {
   id: string;
   tenant_id: string;
   account_id: string;
-  account_level: "OPERATIONAL" | "FAMILY";
+  account_level: "OPERATIONAL" | "FAMILY" | "TENANT";
+  account_type: AccountType;
   name: string;
   email: string;
   tenant_name: string;
@@ -32,6 +35,11 @@ export interface Actor {
   organization_name: string;
   roles: Role[];
   permissions: string[];
+}
+export interface SitePhoto {
+  id: string;
+  file_name: string;
+  mime_type: string;
 }
 export interface SiteSummary {
   id: string;
@@ -43,6 +51,43 @@ export interface SiteSummary {
   organization_id: string;
   organization_name: string;
   roles: Role[];
+  school_id?: string;
+  school_name?: string;
+  address?: string | null;
+  phone?: string | null;
+  principal_teacher_id?: string | null;
+  principal_name?: string | null;
+  education_authority?: "KEMENDIKBUD" | "KEMENAG";
+  school_level?: "PAUD" | "TK" | "SD" | "SMP" | "SMA" | null;
+  npsn?: string | null;
+  nss?: string | null;
+  dapodik_id?: string | null;
+  nsm?: string | null;
+  emis_id?: string | null;
+  photos?: SitePhoto[];
+}
+export interface SiteProfile {
+  id: string;
+  name: string;
+  slug: string;
+  site_code: string;
+  is_primary: boolean;
+  current: boolean;
+  school_id: string;
+  school_name: string;
+  address: string | null;
+  phone: string | null;
+  principal_teacher_id: string | null;
+  principal_name: string | null;
+  education_authority: "KEMENDIKBUD" | "KEMENAG";
+  school_level: "PAUD" | "TK" | "SD" | "SMP" | "SMA" | null;
+  npsn: string | null;
+  nss: string | null;
+  dapodik_id: string | null;
+  nsm: string | null;
+  emis_id: string | null;
+  photos: SitePhoto[];
+  teachers: Array<{ id: string; name: string; nip: string }>;
 }
 export interface Entity {
   id: string;

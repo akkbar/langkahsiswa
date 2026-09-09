@@ -12,6 +12,11 @@ berbasis permission, jalur PPDB custom beserta biaya, registrasi wali lebih dulu
 dan pembuatan akun anak setelah enrollment. Detail alur ada di
 [docs/ACCOUNT_LEVELS_PPDB.md](docs/ACCOUNT_LEVELS_PPDB.md).
 
+Autentikasi berikutnya dipisahkan menjadi tiga realm: Admin Sekolah,
+Siswa/Wali, dan Tenant Sekolah. Login dimulai dari kode yayasan dan jenis akun,
+baru kemudian memvalidasi store identitas realm terkait. Lihat
+[docs/ACCOUNT_REALMS.md](docs/ACCOUNT_REALMS.md).
+
 | Phase | Status     | Hasil                                                                                                                   |
 | ----- | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 0     | Selesai    | Monorepo npm, NestJS, React, Docker PostgreSQL/Redis/MinIO, health nyata                                                |

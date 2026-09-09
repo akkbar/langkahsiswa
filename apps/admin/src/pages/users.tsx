@@ -26,9 +26,12 @@ export function UsersPage({
     name: "",
     email: "",
     password: "",
+    account_type: "SCHOOL_ADMIN",
     roles: ["STAFF"],
   });
-  const [level, setLevel] = useState<"OPERATIONAL" | "FAMILY">("OPERATIONAL");
+  const [level, setLevel] = useState<
+    "SCHOOL_ADMIN" | "FAMILY" | "SCHOOL_TENANT"
+  >("SCHOOL_ADMIN");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -57,7 +60,13 @@ export function UsersPage({
             await send("users", form);
             await refresh();
             setMessage("Akun dibuat.");
-            setForm({ name: "", email: "", password: "", roles: ["STAFF"] });
+            setForm({
+              name: "",
+              email: "",
+              password: "",
+              account_type: "SCHOOL_ADMIN",
+              roles: ["STAFF"],
+            });
           } catch (e) {
             setError((e as Error).message);
           } finally {
@@ -96,27 +105,40 @@ export function UsersPage({
           </label>
           <fieldset>
             <legend>Level akun</legend>
-            {(["OPERATIONAL", "FAMILY"] as const).map((value) => (
-              <label className="check" key={value}>
-                <input
-                  type="radio"
-                  name="account-level"
-                  checked={level === value}
-                  onChange={() => {
-                    setLevel(value);
-                    setForm({
-                      ...form,
-                      roles: [value === "OPERATIONAL" ? "STAFF" : "PARENT"],
-                    });
-                  }}
-                />
-                {value === "OPERATIONAL" ? "Operational" : "Siswa & wali"}
-              </label>
-            ))}
+            {(["SCHOOL_ADMIN", "FAMILY", "SCHOOL_TENANT"] as const).map(
+              (value) => (
+                <label className="check" key={value}>
+                  <input
+                    type="radio"
+                    name="account-level"
+                    checked={level === value}
+                    onChange={() => {
+                      setLevel(value);
+                      setForm({
+                        ...form,
+                        account_type: value,
+                        roles: [
+                          value === "SCHOOL_ADMIN"
+                            ? "STAFF"
+                            : value === "FAMILY"
+                              ? "PARENT"
+                              : "CANTEEN_ADMIN",
+                        ],
+                      });
+                    }}
+                  />
+                  {value === "SCHOOL_ADMIN"
+                    ? "Admin sekolah"
+                    : value === "FAMILY"
+                      ? "Siswa & wali"
+                      : "Tenant sekolah"}
+                </label>
+              ),
+            )}
           </fieldset>
           <fieldset>
             <legend>Peran dan permission awal</legend>
-            {(level === "OPERATIONAL"
+            {(level === "SCHOOL_ADMIN"
               ? [
                   ["STAFF", "Staff"],
                   ["TEACHER", "Guru"],
@@ -124,10 +146,12 @@ export function UsersPage({
                   ["FOUNDATION_STAFF", "Staff Yayasan"],
                   ["FOUNDATION_HEAD", "Kepala Yayasan"],
                 ]
-              : [
-                  ["PARENT", "Orang Tua / Wali"],
-                  ["STUDENT", "Siswa"],
-                ]
+              : level === "FAMILY"
+                ? [
+                    ["PARENT", "Orang Tua / Wali"],
+                    ["STUDENT", "Siswa"],
+                  ]
+                : [["CANTEEN_ADMIN", "Administrator Kantin"]]
             ).map(([role, title]) => (
               <label className="check" key={role}>
                 <input
@@ -171,7 +195,9 @@ export function UsersPage({
                   <td>
                     {u.account_level === "FAMILY"
                       ? "Siswa & wali"
-                      : "Operational"}
+                      : u.account_level === "TENANT"
+                        ? "Tenant sekolah"
+                        : "Admin sekolah"}
                   </td>
                   <td>{Array.isArray(u.roles) ? u.roles.join(", ") : "—"}</td>
                   <td>{u.active ? "Aktif" : "Nonaktif"}</td>

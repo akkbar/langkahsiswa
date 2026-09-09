@@ -177,6 +177,43 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         });
       },
     );
+    await t.test(
+      "remember login controls refresh cookie persistence",
+      async () => {
+        const loginWithRemember = (remember: boolean) =>
+          fetch(`${origin}/api/v1/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tenant_slug: "school-a",
+              email: "admin@a.test",
+              password: "Password!2026",
+              remember,
+            }),
+          });
+        const remembered = await loginWithRemember(true);
+        assert.equal(remembered.status, 201);
+        const rememberedCookies = remembered.headers.getSetCookie();
+        assert.match(
+          rememberedCookies.find((cookie) =>
+            cookie.startsWith("langkahsiswa_refresh="),
+          ) || "",
+          /Max-Age=604800/,
+        );
+        assert.ok(
+          rememberedCookies.some((cookie) =>
+            cookie.startsWith("langkahsiswa_remember=1"),
+          ),
+        );
+        const sessionOnly = await loginWithRemember(false);
+        assert.equal(sessionOnly.status, 201);
+        const sessionCookie = sessionOnly.headers
+          .getSetCookie()
+          .find((cookie) => cookie.startsWith("langkahsiswa_refresh="));
+        assert.ok(sessionCookie);
+        assert.doesNotMatch(sessionCookie, /Max-Age=/);
+      },
+    );
     await t.test("school admins cannot provision tenants", async () => {
       await post(
         "users",
@@ -211,13 +248,49 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
           slug: "school-a-east",
           school_name: "Sekolah A Kampus Timur",
           address: "Jalan Timur 1",
+          phone: "0215550101",
+          education_authority: "KEMENAG",
+          school_level: "SMP",
+          npsn: "70000001",
+          nsm: "121200000001",
+          emis_id: "EMIS-0001",
         });
         const available = await request("sites", "GET", undefined, token);
         assert.equal(available.total, 2);
-        assert.equal(
-          available.data.find((site: any) => site.id === branch.id).current,
-          false,
+        const branchSummary = available.data.find(
+          (site: any) => site.id === branch.id,
         );
+        assert.equal(branchSummary.current, false);
+        assert.equal(branchSummary.education_authority, "KEMENAG");
+        assert.equal(branchSummary.school_level, "SMP");
+        assert.equal(branchSummary.npsn, "70000001");
+        assert.equal(branchSummary.nsm, "121200000001");
+        assert.equal(branchSummary.emis_id, "EMIS-0001");
+        assert.equal(branchSummary.nss, null);
+        await request(
+          `sites/${branch.id}`,
+          "PATCH",
+          {
+            education_authority: "KEMENDIKBUD",
+            npsn: "70000002",
+            nss: "202000000001",
+            dapodik_id: "DAPODIK-0001",
+            nsm: null,
+            emis_id: null,
+          },
+          token,
+        );
+        const updatedBranch = await request(
+          `sites/${branch.id}`,
+          "GET",
+          undefined,
+          token,
+        );
+        assert.equal(updatedBranch.education_authority, "KEMENDIKBUD");
+        assert.equal(updatedBranch.nss, "202000000001");
+        assert.equal(updatedBranch.dapodik_id, "DAPODIK-0001");
+        assert.equal(updatedBranch.nsm, null);
+        assert.equal(updatedBranch.emis_id, null);
         const switched = await request(
           `sites/${branch.id}/switch`,
           "POST",
@@ -245,6 +318,72 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         assert.equal(
           branchSites.data.find((site: any) => site.id === branch.id).current,
           true,
+        );
+        const branchGrades = await request(
+          "grade-levels?limit=20",
+          "GET",
+          undefined,
+          switched.access_token,
+        );
+        assert.deepEqual(
+          branchGrades.data.map((grade: any) => grade.level).sort(),
+          [7, 8, 9],
+        );
+        await request(
+          "grade-levels",
+          "POST",
+          {
+            school_id: branchSummary.school_id,
+            name: "Tingkat tambahan",
+            level: 10,
+          },
+          switched.access_token,
+          400,
+        );
+        await request(
+          `grade-levels/${branchGrades.data[0].id}`,
+          "PATCH",
+          { name: "Tidak boleh diubah" },
+          switched.access_token,
+          400,
+        );
+
+        const early = await post("sites", {
+          name: "PAUD Ceria",
+          slug: "school-a-paud",
+          school_level: "PAUD",
+        });
+        const earlyProfile = await request(
+          `sites/${early.id}`,
+          "GET",
+          undefined,
+          token,
+        );
+        const earlySession = await request(
+          `sites/${early.id}/switch`,
+          "POST",
+          {},
+          token,
+          201,
+        );
+        const earlyGrades = await request(
+          "grade-levels?limit=20",
+          "GET",
+          undefined,
+          earlySession.access_token,
+        );
+        assert.equal(earlyGrades.total, 1);
+        assert.equal(earlyGrades.data[0].name, "Kelompok A");
+        await request(
+          "grade-levels",
+          "POST",
+          {
+            school_id: earlyProfile.school_id,
+            name: "Kelompok B",
+            level: 2,
+          },
+          earlySession.access_token,
+          201,
         );
       },
     );
@@ -305,6 +444,15 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
           grade_level_id: level.id,
           name: "7B",
         });
+        await post(
+          "classes",
+          {
+            academic_year_id: year.id,
+            grade_level_id: level.id,
+            name: "7b",
+          },
+          409,
+        );
         subject = await post("subjects", {
           school_id: school.id,
           name: "Matematika",
@@ -468,6 +616,19 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         );
         teacherAuth = await login("school-a", "teacher@a.test");
         assert.equal(teacherAuth.user.account_level, "OPERATIONAL");
+        assert.equal(teacherAuth.user.account_type, "SCHOOL_ADMIN");
+        await request(
+          "auth/login",
+          "POST",
+          {
+            organization_code: "school-a",
+            account_type: "FAMILY",
+            email: "teacher@a.test",
+            password: "Password!2026",
+          },
+          undefined,
+          401,
+        );
         await request(
           "students",
           "POST",
@@ -489,6 +650,7 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         );
         parentAuth = await login("school-a", "parent@a.test");
         assert.equal(parentAuth.user.account_level, "FAMILY");
+        assert.equal(parentAuth.user.account_type, "FAMILY");
         await post(
           "users",
           {
@@ -504,8 +666,31 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
             "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'TEACHER')",
             [tenantA.id, p.id],
           ),
-          /family role requires FAMILY account|operational role requires OPERATIONAL account/,
+          /role realm must match account realm/,
         );
+        const canteen = await post("users", {
+          name: "Admin Kantin",
+          email: "kantin@a.test",
+          password: "Password!2026",
+          account_type: "SCHOOL_TENANT",
+          roles: ["CANTEEN_ADMIN"],
+        });
+        assert.ok(canteen.id);
+        const canteenAuth = await request(
+          "auth/login",
+          "POST",
+          {
+            organization_code: "school-a",
+            account_type: "SCHOOL_TENANT",
+            email: "kantin@a.test",
+            password: "Password!2026",
+          },
+          undefined,
+          201,
+        );
+        assert.equal(canteenAuth.user.account_level, "TENANT");
+        assert.equal(canteenAuth.user.account_type, "SCHOOL_TENANT");
+        assert.deepEqual(canteenAuth.user.roles, ["CANTEEN_ADMIN"]);
         await post("users", {
           name: "Kepala",
           email: "principal@a.test",

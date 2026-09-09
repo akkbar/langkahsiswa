@@ -12,6 +12,7 @@ export const date = z
   );
 const optionalText = z.string().trim().max(1000).nullable().optional();
 const optionalId = uuid.nullable().optional();
+const optionalRegistryId = z.string().trim().max(80).nullable().optional();
 const person = {
   name,
   email: z.string().email().max(200).nullable().optional(),
@@ -358,6 +359,11 @@ export const loginSchema = z
       .transform((v) => v.toLowerCase()),
     password: z.string().min(1).max(200),
     tenant_slug: z.string().min(1).max(80).optional(),
+    organization_code: z.string().trim().min(1).max(80).optional(),
+    account_type: z
+      .enum(["SCHOOL_ADMIN", "FAMILY", "SCHOOL_TENANT"])
+      .optional(),
+    remember: z.boolean().optional().default(false),
   })
   .strict();
 export const tenantSchema = z
@@ -386,6 +392,43 @@ export const siteSchema = z
     address: optionalText,
     phone: optionalText,
     principal_name: optionalText,
+    principal_teacher_id: optionalId,
+    education_authority: z
+      .enum(["KEMENDIKBUD", "KEMENAG"])
+      .optional()
+      .default("KEMENDIKBUD"),
+    school_level: z
+      .enum(["PAUD", "TK", "SD", "SMP", "SMA"])
+      .optional()
+      .default("SMP"),
+    npsn: optionalRegistryId,
+    nss: optionalRegistryId,
+    dapodik_id: optionalRegistryId,
+    nsm: optionalRegistryId,
+    emis_id: optionalRegistryId,
+  })
+  .strict();
+export const siteUpdateSchema = z
+  .object({
+    name: name.optional(),
+    school_name: name.optional(),
+    address: optionalText,
+    phone: optionalText,
+    principal_teacher_id: optionalId,
+    education_authority: z.enum(["KEMENDIKBUD", "KEMENAG"]).optional(),
+    school_level: z.enum(["PAUD", "TK", "SD", "SMP", "SMA"]).optional(),
+    npsn: optionalRegistryId,
+    nss: optionalRegistryId,
+    dapodik_id: optionalRegistryId,
+    nsm: optionalRegistryId,
+    emis_id: optionalRegistryId,
+  })
+  .strict();
+export const sitePhotoSchema = z
+  .object({
+    file_name: z.string().trim().min(1).max(180),
+    mime_type: z.enum(["image/png", "image/jpeg"]),
+    data_base64: z.string().min(4).max(6_990_508),
   })
   .strict();
 export const userSchema = z
@@ -396,19 +439,17 @@ export const userSchema = z
       .email()
       .transform((v) => v.toLowerCase()),
     password: z.string().min(12).max(100),
+    account_type: z
+      .enum(["SCHOOL_ADMIN", "FAMILY", "SCHOOL_TENANT"])
+      .optional(),
     roles: z
       .array(
-        z.enum([
-          "SCHOOL_ADMIN",
-          "PRINCIPAL",
-          "TEACHER",
-          "FINANCE",
-          "STAFF",
-          "FOUNDATION_STAFF",
-          "FOUNDATION_HEAD",
-          "PARENT",
-          "STUDENT",
-        ]),
+        z
+          .string()
+          .trim()
+          .min(1)
+          .max(80)
+          .regex(/^[A-Z][A-Z0-9_]*$/),
       )
       .min(1),
   })

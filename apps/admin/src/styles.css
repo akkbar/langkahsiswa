@@ -328,10 +328,10 @@ p {
 }
 .sidebar-account {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 10px;
+  padding: 4px 8px;
   border: 1px solid color-mix(in srgb, var(--blue-light) 28%, var(--border));
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 68%, var(--blue-soft));
@@ -346,8 +346,8 @@ p {
   background: color-mix(in srgb, var(--blue-soft) 82%, var(--surface));
 }
 .sidebar-user-avatar {
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border-radius: 11px;
@@ -995,6 +995,67 @@ legend {
 .login-panel .primary {
   margin-bottom: 12px;
 }
+.password-field {
+  position: relative;
+}
+.password-field input {
+  padding-right: 46px;
+}
+.password-visibility {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 36px;
+  height: 34px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  transform: translateY(-50%);
+}
+.password-visibility:hover {
+  border-color: transparent;
+  background: var(--blue-soft);
+  color: var(--accent-text);
+}
+.password-visibility svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.login-remember {
+  width: max-content;
+  margin: 2px 0 14px;
+  font-weight: 500;
+}
+.account-type-switch {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.account-type-switch button {
+  min-width: 0;
+  padding: 0 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.account-type-switch button.active {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: white;
+}
 .login-theme {
   position: absolute;
   right: 28px;
@@ -1133,16 +1194,90 @@ legend {
 }
 .site-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(350px, 100%), 450px));
   gap: 16px;
+  align-items: stretch;
+  justify-content: start;
   margin-bottom: 24px;
 }
-.site-card {
+.page-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 22px;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.view-toggle {
+  display: inline-flex;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-soft);
+}
+.view-toggle button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.view-toggle svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.view-toggle button.active {
+  background: var(--blue);
+  color: white;
+}
+.school-table {
+  overflow: hidden;
+}
+.school-table td {
+  vertical-align: middle;
+}
+.school-table td:first-child {
+  min-width: 210px;
+}
+.school-table td span,
+.school-table td strong {
+  display: block;
+}
+.school-table-address {
+  max-width: 280px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.school-table-actions {
+  display: flex;
+  gap: 6px;
+}
+.school-table-actions button {
+  padding: 7px 10px;
+}
+.site-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: 112px minmax(0, 1fr) auto;
+  width: 100%;
+  height: 390px;
+  padding: 0;
+  overflow: hidden;
   margin-bottom: 0;
 }
 .site-card.current {
@@ -1150,8 +1285,294 @@ legend {
   box-shadow: 0 0 0 2px var(--blue-soft);
 }
 .site-card h2 {
-  margin: 5px 0;
-  font-size: 17px;
+  margin: 4px 0 7px;
+  font-size: 18px;
+  line-height: 1.25;
+}
+.site-card-photo {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  color: white;
+  background: linear-gradient(135deg, var(--blue), var(--blue-light));
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+.site-card-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.site-card-menu {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: white;
+  border-color: rgb(255 255 255 / 35%);
+  background: rgb(0 0 0 / 45%);
+  font-size: 23px;
+  line-height: 1;
+}
+.site-card-body {
+  min-height: 0;
+  padding: 15px 17px 10px;
+}
+.site-address {
+  min-height: 34px;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.site-card-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 0;
+}
+.site-card-meta dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+.site-card-meta dd {
+  overflow: hidden;
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 55px;
+  gap: 10px;
+  padding: 10px 17px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-soft);
+  font-size: 11px;
+}
+.school-drawer-layer {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+}
+.school-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgb(0 0 0 / 48%);
+}
+.school-drawer-backdrop:hover,
+.school-drawer-backdrop:focus,
+.school-drawer-backdrop:active {
+  border: 0;
+  background: rgb(0 0 0 / 48%);
+}
+.school-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: 600px;
+  max-width: 100%;
+  height: 100dvh;
+  padding: 20px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: -22px 0 50px rgb(0 0 0 / 22%);
+}
+.school-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border);
+}
+.school-drawer-header h2 {
+  margin: 4px 0 0;
+  font-size: 21px;
+}
+.school-drawer-header > button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 21px;
+}
+.school-editor-form {
+  display: grid;
+  gap: 15px;
+}
+.school-editor-form label {
+  display: grid;
+  gap: 6px;
+}
+.school-photo-field {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 2px 0 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.school-photo-list {
+  display: grid;
+  gap: 7px;
+}
+.school-photo-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: var(--surface-soft);
+}
+.school-photo-list span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.school-photo-list button {
+  padding: 5px 8px;
+}
+.school-drawer-actions {
+  position: sticky;
+  bottom: -20px;
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px -20px -20px;
+  padding: 14px 20px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.class-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(190px, 280px)) 1fr;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+}
+.class-filter-bar label {
+  display: grid;
+  gap: 5px;
+}
+.class-filter-bar strong {
+  justify-self: end;
+  padding-bottom: 11px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.class-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.class-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  min-height: 205px;
+  margin: 0;
+  overflow: hidden;
+}
+.class-card-mark {
+  display: grid;
+  place-items: center;
+  color: white;
+  background: linear-gradient(160deg, var(--blue), var(--blue-light));
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+}
+.class-card-menu {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+.class-card-menu svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.class-card-body {
+  min-width: 0;
+  padding: 18px 52px 16px 18px;
+}
+.class-card-body h2 {
+  margin: 5px 0 18px;
+  font-size: 22px;
+}
+.class-card-meta {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.class-card-meta div {
+  min-width: 0;
+}
+.class-card-meta dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+.class-card-meta dd {
+  overflow: hidden;
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.class-table {
+  overflow: hidden;
+}
+.class-table td {
+  vertical-align: middle;
+}
+.class-form-note {
+  margin: 2px 0 0;
+}
+@media (max-width: 680px) {
+  .class-filter-bar {
+    grid-template-columns: 1fr;
+  }
+  .class-filter-bar strong {
+    justify-self: start;
+    padding-bottom: 0;
+  }
+  .class-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
 }
 .form-wide {
   grid-column: 1 / -1;
@@ -1392,6 +1813,17 @@ legend {
     justify-content: space-between;
     align-items: center;
   }
+  .school-drawer {
+    width: 100%;
+    padding: 18px;
+  }
+  .site-card-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .page-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
   .metric strong {
     margin: 0;
   }
@@ -1600,6 +2032,26 @@ legend {
 .builder-item textarea,
 .builder-item button {
   grid-column: 1/-1;
+}
+
+/* Standard actions are 40px; view-switch controls remain compact. */
+button:not(
+  :where(.product-button, .school-drawer-backdrop, .sidebar-backdrop)
+) {
+  height: 40px;
+  min-height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.view-toggle button {
+  height: 32px;
+  min-height: 32px;
+}
+.thumbnail-menu-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
 }
 .builder-item button {
   justify-self: start;

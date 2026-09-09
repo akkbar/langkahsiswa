@@ -56,6 +56,7 @@ void main() {
       shell(LoginPage(api: api, onLogin: () {}, toggleTheme: () {})),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Masuk'));
     await tester.tap(find.text('Masuk'));
     await tester.pumpAndSettle();
     expect(find.text('Wajib diisi'), findsNWidgets(2));
