@@ -3,7 +3,6 @@ import type { Actor } from "../../../../packages/shared-types/src";
 import { ErrorBox } from "../components";
 import { api, send, setToken } from "../api";
 import { ThemeToggle } from "../theme";
-import type { AccountType } from "../../../../packages/shared-types/src";
 type GoogleId = {
   initialize: (options: {
     client_id: string;
@@ -46,7 +45,6 @@ function loadGoogle() {
 export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
   const [form, setForm] = useState({
     organization_code: "demo",
-    account_type: "SCHOOL_ADMIN" as AccountType,
     email: "",
     password: "",
     remember: false,
@@ -68,8 +66,6 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
   const googleButton = useRef<HTMLDivElement>(null);
   const organization = useRef(form.organization_code);
   organization.current = form.organization_code;
-  const accountType = useRef(form.account_type);
-  accountType.current = form.account_type;
   const loginCallback = useRef(onLogin);
   loginCallback.current = onLogin;
   async function googleLogin(credential: string, account_password?: string) {
@@ -82,7 +78,6 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
     try {
       const data = await send("auth/google", {
         organization_code: organization.current.trim(),
-        account_type: accountType.current,
         credential,
         remember: form.remember,
         ...(account_password ? { account_password } : {}),
@@ -190,34 +185,10 @@ export function Login({ onLogin }: { onLogin: (user: Actor) => void }) {
             <span className="eyebrow">SELAMAT DATANG</span>
             <h2>Masuk ke sekolah Anda</h2>
             <p className="muted">
-              Pilih ruang akun, lalu gunakan kredensial yang sesuai.
+              Gunakan satu akun untuk mengakses semua peran yang diberikan oleh
+              sekolah.
             </p>
             <ErrorBox error={error} />
-            <div
-              className="account-type-switch"
-              role="group"
-              aria-label="Jenis akun"
-            >
-              {[
-                ["SCHOOL_ADMIN", "Admin Sekolah"],
-                ["FAMILY", "Siswa / Wali"],
-                ["SCHOOL_TENANT", "Tenant Sekolah"],
-              ].map(([value, title]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={form.account_type === value ? "active" : ""}
-                  aria-pressed={form.account_type === value}
-                  onClick={() => {
-                    setForm({ ...form, account_type: value as AccountType });
-                    setLinkCredential("");
-                    setError("");
-                  }}
-                >
-                  {title}
-                </button>
-              ))}
-            </div>
             <label>
               Kode yayasan
               <input

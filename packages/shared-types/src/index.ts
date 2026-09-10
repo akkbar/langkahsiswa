@@ -51,6 +51,7 @@ export interface SiteSummary {
   organization_id: string;
   organization_name: string;
   roles: Role[];
+  binding_scope?: "FOUNDATION" | "SCHOOL";
   school_id?: string;
   school_name?: string;
   address?: string | null;

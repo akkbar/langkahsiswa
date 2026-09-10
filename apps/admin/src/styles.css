@@ -193,7 +193,12 @@ p {
   flex-direction: column;
   z-index: 10;
 }
+.school-context {
+  position: relative;
+  margin: 16px 0 10px;
+}
 .school-pill {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -201,8 +206,15 @@ p {
   background: var(--surface-soft);
   border: 1px solid var(--border);
   border-radius: 10px;
-  margin: 16px 0 10px;
+  margin: 0;
   font-size: 12px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.school-pill:hover {
+  border-color: var(--blue);
+  background: var(--hover);
 }
 .school-pill strong {
   display: block;
@@ -216,20 +228,61 @@ p {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.school-pill > div {
+.school-pill-copy {
+  display: block;
   min-width: 0;
   flex: 1;
 }
-.site-switcher {
+.school-switch-chevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+.school-switch-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(320px, calc(100vw - 28px));
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.school-switch-menu > .eyebrow {
+  display: block;
+  padding: 5px 8px 8px;
+}
+.school-switch-menu > button {
   width: 100%;
-  min-height: 24px;
-  margin: 0;
-  padding: 0 18px 0 0;
-  border: 0;
-  border-radius: 0;
-  font-size: 12px;
-  font-weight: 700;
-  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 8px;
+  border-color: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.school-switch-menu > button:hover,
+.school-switch-menu > button.current {
+  background: var(--blue-soft);
+  border-color: var(--border);
+}
+.school-switch-menu > button span:first-child {
+  min-width: 0;
+}
+.school-switch-menu strong,
+.school-switch-menu small {
+  display: block;
+}
+.school-switch-menu small {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .school-avatar {
   display: grid;
@@ -1032,29 +1085,6 @@ legend {
   width: max-content;
   margin: 2px 0 14px;
   font-weight: 500;
-}
-.account-type-switch {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  margin-bottom: 16px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-soft);
-}
-.account-type-switch button {
-  min-width: 0;
-  padding: 0 8px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-}
-.account-type-switch button.active {
-  border-color: var(--blue);
-  background: var(--blue);
-  color: white;
 }
 .login-theme {
   position: absolute;

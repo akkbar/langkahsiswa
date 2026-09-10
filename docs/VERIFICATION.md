@@ -30,7 +30,7 @@ versi immutable, penerbitan, aset publik, dan isolasi website antar-tenant juga 
 Custom domain, hunian pondok, izin/kunjungan, tahfidz, laundry-wallet,
 sirkulasi perpustakaan, return/denda-wallet, audit append-only, rotasi refresh,
 serta pencabutan sesi juga diuji. Cakupan baru memeriksa yayasan multi-lokasi,
-pemisahan akun operasional/keluarga, jalur PPDB berbiaya, registrasi wali,
+akun terpadu multi-role, jalur PPDB berbiaya, registrasi wali,
 unggah dokumen terautentikasi, enrollment, dan pembuatan akun siswa. Phase 23
 dikecualikan karena ditunda.
 

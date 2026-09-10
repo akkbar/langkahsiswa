@@ -37,14 +37,15 @@ import {
 import { DashboardPage, SitesPage } from "./pages/dashboard";
 import { ClassesPage } from "./pages/classes";
 import { FamilyPage } from "./pages/family";
-const homeRoute = (user: Actor) =>
-  user.account_type === "SCHOOL_TENANT"
-    ? "pos"
-    : user.roles.includes("PARENT")
-      ? "family"
-      : user.roles.includes("STUDENT")
-        ? "portal"
-        : "dashboard";
+const homeRoute = (user: Actor) => {
+  const hasOperationalRole = user.roles.some(
+    (role) => !["PARENT", "STUDENT", "CANTEEN_ADMIN"].includes(role),
+  );
+  if (hasOperationalRole) return "dashboard";
+  if (user.roles.includes("PARENT")) return "family";
+  if (user.roles.includes("STUDENT")) return "portal";
+  return user.roles.includes("CANTEEN_ADMIN") ? "pos" : "dashboard";
+};
 
 const groupedNavigation: Record<string, string[]> = {
   Administrasi: [
@@ -130,6 +131,7 @@ function Workspace({
     useState<Record<string, boolean>>(initiallyOpenGroups);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [accountDetailOpen, setAccountDetailOpen] = useState(false);
+  const [schoolSwitcherOpen, setSchoolSwitcherOpen] = useState(false);
   const [sites, setSites] = useState<SiteSummary[]>([]);
   async function logout() {
     try {
@@ -146,6 +148,7 @@ function Workspace({
     setSites(result.data);
   }
   async function switchSite(id: string) {
+    setSchoolSwitcherOpen(false);
     if (id === user.tenant_id) return;
     setLoading(true);
     setError("");
@@ -197,6 +200,19 @@ function Workspace({
       window.removeEventListener("keydown", escape);
     };
   }, [accountMenuOpen]);
+  useEffect(() => {
+    if (!schoolSwitcherOpen) return;
+    const close = () => setSchoolSwitcherOpen(false);
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [schoolSwitcherOpen]);
   const extra = [
     {
       key: "attendance",
@@ -365,23 +381,6 @@ function Workspace({
     group: "Dashboard",
     permission: "",
   });
-  const realmRoutes: Record<Actor["account_type"], Set<string> | null> = {
-    SCHOOL_ADMIN: null,
-    FAMILY: new Set([
-      "family",
-      "portal",
-      "billing",
-      "wallet",
-      "events",
-      "notifications",
-      "dashboard",
-    ]),
-    SCHOOL_TENANT: new Set(["dashboard", "pos"]),
-  };
-  const routesForRealm = realmRoutes[user.account_type];
-  if (routesForRealm)
-    for (let index = links.length - 1; index >= 0; index--)
-      if (!routesForRealm.has(links[index].key)) links.splice(index, 1);
   const dataKeys = new Set([
     "sites",
     "school-team",
@@ -453,27 +452,50 @@ function Workspace({
         <a className="brand" href={`#${homeRoute(user)}`}>
           <span className="brandmark">L</span>LangkahSiswa
         </a>
-        <div className="school-pill">
-          <span className="school-avatar">▥</span>
-          <div>
-            {sites.length > 1 ? (
-              <select
-                className="site-switcher"
-                aria-label="Lokasi aktif"
-                value={user.tenant_id}
-                onChange={(event) => void switchSite(event.target.value)}
-              >
-                {sites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
+        <div
+          className="school-context"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="school-pill"
+            aria-haspopup={sites.length > 1 ? "menu" : undefined}
+            aria-expanded={sites.length > 1 ? schoolSwitcherOpen : undefined}
+            onClick={() =>
+              sites.length > 1 && setSchoolSwitcherOpen(!schoolSwitcherOpen)
+            }
+          >
+            <span className="school-avatar">▥</span>
+            <span className="school-pill-copy">
               <strong>{schoolName}</strong>
+              <span title={schoolAddress}>{schoolAddress}</span>
+            </span>
+            {sites.length > 1 && (
+              <span className="school-switch-chevron" aria-hidden="true">
+                {schoolSwitcherOpen ? "−" : "+"}
+              </span>
             )}
-            <span title={schoolAddress}>{schoolAddress}</span>
-          </div>
+          </button>
+          {schoolSwitcherOpen && (
+            <div className="school-switch-menu" role="menu">
+              <span className="eyebrow">AKSES SEKOLAH</span>
+              {sites.map((site) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={site.current ? "current" : ""}
+                  key={site.id}
+                  onClick={() => void switchSite(site.id)}
+                >
+                  <span>
+                    <strong>{site.school_name || site.name}</strong>
+                    <small>{site.roles.join(", ")}</small>
+                  </span>
+                  <span aria-hidden="true">{site.current ? "✓" : "→"}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <nav aria-label="Navigasi utama">
           {groups.map((group) => {
@@ -678,7 +700,7 @@ function Workspace({
           ) : route === "report-cards" ? (
             <ReportsPage catalog={catalog} user={user} />
           ) : route === "users" ? (
-            <UsersPage catalog={catalog} refresh={refresh} />
+            <UsersPage user={user} catalog={catalog} refresh={refresh} />
           ) : route === "billing" ? (
             <BillingPage user={user} />
           ) : route === "wallet" ? (

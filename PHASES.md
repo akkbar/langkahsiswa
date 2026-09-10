@@ -7,14 +7,15 @@ Panduan menjalankan dan batas implementasi: [docs/IMPLEMENTATION.md](docs/IMPLEM
 
 Pembaruan fondasi setelah phase 24 juga selesai: brand **LangkahSiswa**, menu
 operasional yang dikelompokkan dengan Dashboard di atas dan Data Sekolah di
-bawah, yayasan multi-lokasi, pemisahan akun operasional/keluarga, template role
+bawah, yayasan multi-lokasi, akun terpadu multi-role, template role
 berbasis permission, jalur PPDB custom beserta biaya, registrasi wali lebih dulu,
 dan pembuatan akun anak setelah enrollment. Detail alur ada di
 [docs/ACCOUNT_LEVELS_PPDB.md](docs/ACCOUNT_LEVELS_PPDB.md).
 
-Autentikasi berikutnya dipisahkan menjadi tiga realm: Admin Sekolah,
-Siswa/Wali, dan Tenant Sekolah. Login dimulai dari kode yayasan dan jenis akun,
-baru kemudian memvalidasi store identitas realm terkait. Lihat
+Autentikasi menggunakan satu halaman untuk admin, guru, siswa/wali, dan tenant.
+Login dimulai dari kode yayasan serta kredensial; `user_bindings` menentukan
+akses yayasan/sekolah dan role/permission menentukan akses modul. Kartu sekolah
+di sidebar mengganti session ke sekolah lain yang tercakup binding. Lihat
 [docs/ACCOUNT_REALMS.md](docs/ACCOUNT_REALMS.md).
 
 | Phase | Status     | Hasil                                                                                                                   |

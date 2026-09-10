@@ -173,23 +173,11 @@ export function isAdmin(actor: Actor) {
     actor.roles.includes("SUPER_ADMIN") || actor.roles.includes("SCHOOL_ADMIN")
   );
 }
-const accountLevels: Record<AccountType, Actor["account_level"]> = {
-  SCHOOL_ADMIN: "OPERATIONAL",
-  FAMILY: "FAMILY",
-  SCHOOL_TENANT: "TENANT",
-};
 const accountTypes: Record<Actor["account_level"], AccountType> = {
   OPERATIONAL: "SCHOOL_ADMIN",
   FAMILY: "FAMILY",
   TENANT: "SCHOOL_TENANT",
 };
-const accountRealmMembership = `(a.account_level='OPERATIONAL' AND EXISTS(
-  SELECT 1 FROM operational_accounts realm WHERE realm.account_id=a.id
-)) OR (a.account_level='FAMILY' AND EXISTS(
-  SELECT 1 FROM family_accounts realm WHERE realm.account_id=a.id
-)) OR (a.account_level='TENANT' AND EXISTS(
-  SELECT 1 FROM tenant_accounts realm WHERE realm.account_id=a.id
-))`;
 export async function initializeRoles(sql: Sql) {
   for (const role of roles) {
     const level =
@@ -198,9 +186,18 @@ export async function initializeRoles(sql: Sql) {
         : role === "CANTEEN_ADMIN"
           ? "TENANT"
           : "OPERATIONAL";
+    const scopeLevel =
+      role === "SUPER_ADMIN"
+        ? "PLATFORM"
+        : role === "FOUNDATION_HEAD" || role === "FOUNDATION_STAFF"
+          ? "FOUNDATION"
+          : "SCHOOL";
     await sql.query(
-      "INSERT INTO roles(id,account_level) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET account_level=excluded.account_level",
-      [role, level],
+      `INSERT INTO roles(id,account_level,scope_level) VALUES($1,$2,$3)
+       ON CONFLICT(id) DO UPDATE SET
+        account_level=excluded.account_level,
+        scope_level=excluded.scope_level`,
+      [role, level, scopeLevel],
     );
     for (const permission of rolePermissions[role]) {
       await sql.query(
@@ -243,8 +240,6 @@ export async function createTenant(
       [input.admin_name, input.admin_email],
     )
   ).rows[0];
-  if (account.account_level !== "OPERATIONAL")
-    throw new BadRequestException("Email sudah digunakan oleh akun keluarga");
   await sql.query(
     "INSERT INTO operational_accounts(account_id,position) VALUES($1,'STAFF') ON CONFLICT DO NOTHING",
     [account.id],
@@ -265,6 +260,11 @@ export async function createTenant(
     "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'SCHOOL_ADMIN')",
     [tenant.id, user.id],
   );
+  await sql.query(
+    `INSERT INTO user_bindings(account_id,organization_id,tenant_id,role_id)
+     VALUES($1,$2,$3,'SCHOOL_ADMIN') ON CONFLICT DO NOTHING`,
+    [account.id, organization.id, tenant.id],
+  );
   return tenant;
 }
 @Injectable()
@@ -281,8 +281,10 @@ export class AuthService {
          JOIN organization_sites os ON os.tenant_id=t.id
          JOIN organizations o ON o.id=os.organization_id
          JOIN accounts a ON a.id=u.account_id
-         WHERE u.id=$1 AND u.tenant_id=$2 AND u.active AND a.active
-         AND (${accountRealmMembership})
+         WHERE u.id=$1 AND u.tenant_id=$2 AND u.active AND u.status='ACTIVE' AND a.active
+         AND EXISTS(SELECT 1 FROM user_bindings b
+          WHERE b.account_id=u.account_id AND b.organization_id=o.id
+          AND b.status='ACTIVE' AND (b.tenant_id IS NULL OR b.tenant_id=u.tenant_id))
          AND t.status='ACTIVE' AND o.status='ACTIVE'`,
         [userId, tenantId],
       )
@@ -290,8 +292,14 @@ export class AuthService {
     if (!user) throw new UnauthorizedException("Sesi tidak berlaku");
     const grants = (
       await this.db.query(
-        "SELECT ur.role_id,rp.permission_id FROM user_roles ur JOIN role_permissions rp ON rp.role_id=ur.role_id WHERE ur.tenant_id=$1 AND ur.user_id=$2",
-        [tenantId, userId],
+        `SELECT binding.role_id,rp.permission_id
+         FROM user_bindings binding
+         JOIN organization_sites os ON os.organization_id=binding.organization_id
+          AND os.tenant_id=$2
+         JOIN role_permissions rp ON rp.role_id=binding.role_id
+         WHERE binding.account_id=$1 AND binding.status='ACTIVE'
+         AND (binding.tenant_id IS NULL OR binding.tenant_id=$2)`,
+        [user.account_id, tenantId],
       )
     ).rows;
     return {
@@ -497,9 +505,6 @@ export class AuthController {
     ).toLowerCase();
     const tenantId = await this.auth.resolveTenant(req, organizationCode);
     if (!tenantId) throw new UnauthorizedException("Yayasan wajib ditentukan");
-    const accountLevel = input.account_type
-      ? accountLevels[input.account_type]
-      : null;
     const identity = await this.google.verify(input.credential);
     const result = await this.auth.db.transaction(tenantId, async (sql) => {
       const linked = (
@@ -508,10 +513,13 @@ export class AuthController {
            JOIN users u ON u.tenant_id=i.tenant_id AND u.id=i.user_id
            JOIN accounts a ON a.id=u.account_id
            JOIN tenants t ON t.id=u.tenant_id
+           JOIN organization_sites os ON os.tenant_id=u.tenant_id
            WHERE i.tenant_id=$1 AND i.provider='GOOGLE' AND i.subject=$2
-             AND ($3::text IS NULL OR a.account_level=$3) AND (${accountRealmMembership})
-             AND u.active AND a.active AND t.status='ACTIVE'`,
-          [tenantId, identity.subject, accountLevel],
+             AND EXISTS(SELECT 1 FROM user_bindings b
+              WHERE b.account_id=a.id AND b.organization_id=os.organization_id
+              AND b.status='ACTIVE' AND (b.tenant_id IS NULL OR b.tenant_id=u.tenant_id))
+             AND u.active AND u.status='ACTIVE' AND a.active AND t.status='ACTIVE'`,
+          [tenantId, identity.subject],
         )
       ).rows[0];
       let user = linked;
@@ -520,11 +528,13 @@ export class AuthController {
           await sql.query(
             `SELECT u.* FROM users u JOIN accounts a ON a.id=u.account_id
              JOIN tenants t ON t.id=u.tenant_id
+             JOIN organization_sites os ON os.tenant_id=u.tenant_id
              WHERE u.tenant_id=$1 AND u.email=$2
-               AND ($3::text IS NULL OR a.account_level=$3)
-               AND (${accountRealmMembership})
-               AND u.active AND a.active AND t.status='ACTIVE'`,
-            [tenantId, identity.email, accountLevel],
+               AND EXISTS(SELECT 1 FROM user_bindings b
+                WHERE b.account_id=a.id AND b.organization_id=os.organization_id
+                AND b.status='ACTIVE' AND (b.tenant_id IS NULL OR b.tenant_id=u.tenant_id))
+               AND u.active AND u.status='ACTIVE' AND a.active AND t.status='ACTIVE'`,
+            [tenantId, identity.email],
           )
         ).rows[0];
         if (!user)
@@ -555,6 +565,10 @@ export class AuthController {
           [tenantId, user.id, identity.subject],
         );
       }
+      await sql.query(
+        "UPDATE users SET last_login_at=now() WHERE tenant_id=$1 AND id=$2",
+        [tenantId, user.id],
+      );
       return {
         ...(await this.auth.tokens(sql, user.id, tenantId, req)),
         user: await this.auth.actor(user.id, tenantId),
@@ -587,9 +601,6 @@ export class AuthController {
     ).toLowerCase();
     const tenantId = await this.auth.resolveTenant(req, organizationCode);
     if (!tenantId) throw new UnauthorizedException("Yayasan wajib ditentukan");
-    const accountLevel = input.account_type
-      ? accountLevels[input.account_type]
-      : null;
     const user = (
       await this.auth.db.query(
         `SELECT u.* FROM organization_sites requested
@@ -599,11 +610,12 @@ export class AuthController {
          JOIN accounts a ON a.id=u.account_id
          JOIN tenants t ON t.id=u.tenant_id
          WHERE requested.tenant_id=$1 AND u.email=$2
-           AND ($3::text IS NULL OR a.account_level=$3)
-           AND (${accountRealmMembership})
-           AND u.active AND a.active AND t.status='ACTIVE'
+           AND EXISTS(SELECT 1 FROM user_bindings b
+            WHERE b.account_id=a.id AND b.organization_id=requested.organization_id
+            AND b.status='ACTIVE' AND (b.tenant_id IS NULL OR b.tenant_id=u.tenant_id))
+           AND u.active AND u.status='ACTIVE' AND a.active AND t.status='ACTIVE'
          ORDER BY available.is_primary DESC,u.created_at LIMIT 1`,
-        [tenantId, input.email, accountLevel],
+        [tenantId, input.email],
       )
     ).rows[0];
     if (!user || !(await compare(input.password, user.password_hash))) {
@@ -621,7 +633,13 @@ export class AuthController {
     const authenticatedTenantId = user.tenant_id;
     const tokens = await this.auth.db.transaction(
       authenticatedTenantId,
-      (sql) => this.auth.tokens(sql, user.id, authenticatedTenantId, req),
+      async (sql) => {
+        await sql.query(
+          "UPDATE users SET last_login_at=now() WHERE tenant_id=$1 AND id=$2",
+          [authenticatedTenantId, user.id],
+        );
+        return this.auth.tokens(sql, user.id, authenticatedTenantId, req);
+      },
     );
     await this.auth.db.query(
       "INSERT INTO login_history(tenant_id,user_id,email,provider,success,ip_address,user_agent) VALUES($1,$2,$3,'PASSWORD',true,$4,$5)",
@@ -743,11 +761,14 @@ export class UsersController {
     allow(req.actor, "people.read");
     const data = (
       await this.db.query(
-        `SELECT u.id,u.tenant_id,u.name,u.email,u.active,a.account_level,
-         COALESCE(array_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL),'{}') AS roles
+        `SELECT u.id,u.tenant_id,u.name,u.email,u.active,u.status,u.last_login_at,
+         COALESCE(array_agg(DISTINCT binding.role_id) FILTER (WHERE binding.role_id IS NOT NULL),'{}') AS roles
          FROM users u JOIN accounts a ON a.id=u.account_id
-         LEFT JOIN user_roles ur ON ur.tenant_id=u.tenant_id AND ur.user_id=u.id
-         WHERE u.tenant_id=$1 GROUP BY u.id,a.account_level ORDER BY u.name`,
+         JOIN organization_sites os ON os.tenant_id=u.tenant_id
+         LEFT JOIN user_bindings binding ON binding.account_id=a.id
+          AND binding.organization_id=os.organization_id AND binding.status='ACTIVE'
+          AND (binding.tenant_id IS NULL OR binding.tenant_id=u.tenant_id)
+         WHERE u.tenant_id=$1 GROUP BY u.id ORDER BY u.name`,
         [req.actor.tenant_id],
       )
     ).rows;
@@ -764,49 +785,50 @@ export class UsersController {
         throw new BadRequestException(
           "Hanya super admin yang dapat memberikan role SUPER_ADMIN",
         );
-      const familyRoles = input.roles.filter((role) =>
-        ["PARENT", "STUDENT"].includes(role),
-      );
-      if (familyRoles.length && familyRoles.length !== input.roles.length)
-        throw new BadRequestException(
-          "Role operational dan keluarga tidak dapat digabung dalam satu akun",
-        );
-      const requestedType =
-        input.account_type ||
-        (familyRoles.length
-          ? "FAMILY"
-          : input.roles.includes("CANTEEN_ADMIN")
-            ? "SCHOOL_TENANT"
-            : "SCHOOL_ADMIN");
-      const accountLevel = accountLevels[requestedType];
       const configuredRoles = (
         await sql.query(
-          "SELECT id,account_level FROM roles WHERE id=ANY($1::text[])",
+          "SELECT id,scope_level FROM roles WHERE id=ANY($1::text[])",
           [input.roles],
         )
       ).rows;
       if (configuredRoles.length !== new Set(input.roles).size)
         throw new BadRequestException("Role belum terdaftar");
-      if (configuredRoles.some((role) => role.account_level !== accountLevel))
-        throw new BadRequestException(
-          "Role dan jenis akun harus berada pada ruang akses yang sama",
+      if (
+        configuredRoles.some((role) => role.scope_level === "FOUNDATION") &&
+        !(
+          await sql.query(
+            `SELECT 1 FROM user_bindings binding
+             JOIN roles role ON role.id=binding.role_id
+             WHERE binding.account_id=$1 AND binding.organization_id=$2
+             AND binding.tenant_id IS NULL AND binding.status='ACTIVE'
+             AND role.scope_level IN ('PLATFORM','FOUNDATION')`,
+            [req.actor.account_id, req.actor.organization_id],
+          )
+        ).rowCount
+      )
+        throw new ForbiddenException(
+          "Hanya pengurus yayasan yang dapat memberikan role yayasan",
         );
+      const operationalRoles = input.roles.filter(
+        (role) => !["PARENT", "STUDENT", "CANTEEN_ADMIN"].includes(role),
+      );
+      const legacyLevel = operationalRoles.length
+        ? "OPERATIONAL"
+        : input.roles.includes("CANTEEN_ADMIN")
+          ? "TENANT"
+          : "FAMILY";
       const account = (
         await sql.query(
           "INSERT INTO accounts(name,email,account_level) VALUES($1,$2,$3) ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id,account_level",
-          [input.name, input.email, accountLevel],
+          [input.name, input.email, legacyLevel],
         )
       ).rows[0];
-      if (account.account_level !== accountLevel)
-        throw new BadRequestException(
-          "Email sudah terdaftar pada kategori akun yang berbeda",
-        );
-      if (accountLevel === "FAMILY")
+      if (input.roles.some((role) => ["PARENT", "STUDENT"].includes(role)))
         await sql.query(
           "INSERT INTO family_accounts(account_id,created_via) VALUES($1,'SCHOOL_ADMIN') ON CONFLICT DO NOTHING",
           [account.id],
         );
-      else if (accountLevel === "OPERATIONAL")
+      if (operationalRoles.length)
         await sql.query(
           "INSERT INTO operational_accounts(account_id,position) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [
@@ -822,7 +844,7 @@ export class UsersController {
                     : "STAFF",
           ],
         );
-      else
+      if (input.roles.includes("CANTEEN_ADMIN"))
         await sql.query(
           "INSERT INTO tenant_accounts(account_id,tenant_kind) VALUES($1,'CANTEEN') ON CONFLICT DO NOTHING",
           [account.id],
@@ -843,6 +865,23 @@ export class UsersController {
         await sql.query(
           "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,$3)",
           [req.actor.tenant_id, membership.id, role],
+        );
+      const organizationId = (
+        await sql.query(
+          "SELECT organization_id FROM organization_sites WHERE tenant_id=$1",
+          [req.actor.tenant_id],
+        )
+      ).rows[0]?.organization_id;
+      for (const role of configuredRoles)
+        await sql.query(
+          `INSERT INTO user_bindings(account_id,organization_id,tenant_id,role_id)
+           VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+          [
+            account.id,
+            organizationId,
+            role.scope_level === "SCHOOL" ? req.actor.tenant_id : null,
+            role.id,
+          ],
         );
       return membership;
     });

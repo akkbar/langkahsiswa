@@ -16,9 +16,11 @@ import {
 } from "../components";
 import { send } from "../api";
 export function UsersPage({
+  user,
   catalog,
   refresh,
 }: {
+  user: Actor;
   catalog: Catalog;
   refresh: () => Promise<void>;
 }) {
@@ -26,12 +28,8 @@ export function UsersPage({
     name: "",
     email: "",
     password: "",
-    account_type: "SCHOOL_ADMIN",
     roles: ["STAFF"],
   });
-  const [level, setLevel] = useState<
-    "SCHOOL_ADMIN" | "FAMILY" | "SCHOOL_TENANT"
-  >("SCHOOL_ADMIN");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -42,8 +40,8 @@ export function UsersPage({
           <span className="eyebrow">PENGATURAN AKSES</span>
           <h1>Permission dan Role Setting</h1>
           <p className="muted">
-            Atur level akun dan role awal. Permission pengguna mengikuti role
-            yang dipilih.
+            Satu akun dapat memiliki beberapa peranan. Permission pengguna
+            mengikuti seluruh role yang dipilih.
           </p>
         </div>
       </div>
@@ -64,7 +62,6 @@ export function UsersPage({
               name: "",
               email: "",
               password: "",
-              account_type: "SCHOOL_ADMIN",
               roles: ["STAFF"],
             });
           } catch (e) {
@@ -104,55 +101,24 @@ export function UsersPage({
             />
           </label>
           <fieldset>
-            <legend>Level akun</legend>
-            {(["SCHOOL_ADMIN", "FAMILY", "SCHOOL_TENANT"] as const).map(
-              (value) => (
-                <label className="check" key={value}>
-                  <input
-                    type="radio"
-                    name="account-level"
-                    checked={level === value}
-                    onChange={() => {
-                      setLevel(value);
-                      setForm({
-                        ...form,
-                        account_type: value,
-                        roles: [
-                          value === "SCHOOL_ADMIN"
-                            ? "STAFF"
-                            : value === "FAMILY"
-                              ? "PARENT"
-                              : "CANTEEN_ADMIN",
-                        ],
-                      });
-                    }}
-                  />
-                  {value === "SCHOOL_ADMIN"
-                    ? "Admin sekolah"
-                    : value === "FAMILY"
-                      ? "Siswa & wali"
-                      : "Tenant sekolah"}
-                </label>
-              ),
-            )}
-          </fieldset>
-          <fieldset>
             <legend>Peran dan permission awal</legend>
-            {(level === "SCHOOL_ADMIN"
-              ? [
-                  ["STAFF", "Staff"],
-                  ["TEACHER", "Guru"],
-                  ["PRINCIPAL", "Kepala Sekolah"],
-                  ["FOUNDATION_STAFF", "Staff Yayasan"],
-                  ["FOUNDATION_HEAD", "Kepala Yayasan"],
-                ]
-              : level === "FAMILY"
+            {[
+              ["STAFF", "Staff"],
+              ["TEACHER", "Guru"],
+              ["PRINCIPAL", "Kepala Sekolah"],
+              ["FINANCE", "Keuangan"],
+              ...(user.roles.some((role) =>
+                ["SUPER_ADMIN", "FOUNDATION_HEAD"].includes(role),
+              )
                 ? [
-                    ["PARENT", "Orang Tua / Wali"],
-                    ["STUDENT", "Siswa"],
+                    ["FOUNDATION_STAFF", "Staff Yayasan"],
+                    ["FOUNDATION_HEAD", "Kepala Yayasan"],
                   ]
-                : [["CANTEEN_ADMIN", "Administrator Kantin"]]
-            ).map(([role, title]) => (
+                : []),
+              ["PARENT", "Orang Tua / Wali"],
+              ["STUDENT", "Siswa"],
+              ["CANTEEN_ADMIN", "Administrator Kantin"],
+            ].map(([role, title]) => (
               <label className="check" key={role}>
                 <input
                   type="checkbox"
@@ -182,7 +148,6 @@ export function UsersPage({
               <tr>
                 <th>Nama</th>
                 <th>Email</th>
-                <th>Level</th>
                 <th>Peran</th>
                 <th>Status</th>
               </tr>
@@ -192,15 +157,10 @@ export function UsersPage({
                 <tr key={u.id}>
                   <td>{String(u.name)}</td>
                   <td>{String(u.email)}</td>
-                  <td>
-                    {u.account_level === "FAMILY"
-                      ? "Siswa & wali"
-                      : u.account_level === "TENANT"
-                        ? "Tenant sekolah"
-                        : "Admin sekolah"}
-                  </td>
                   <td>{Array.isArray(u.roles) ? u.roles.join(", ") : "—"}</td>
-                  <td>{u.active ? "Aktif" : "Nonaktif"}</td>
+                  <td>
+                    {String(u.status || (u.active ? "ACTIVE" : "LOCKED"))}
+                  </td>
                 </tr>
               ))}
             </tbody>

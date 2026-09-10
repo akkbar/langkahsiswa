@@ -11,17 +11,17 @@ pemilih sekolah di sidebar.
 Role `Kepala Yayasan` dapat membuat lokasi baru. Lokasi baru otomatis mempunyai
 tenant, pengaturan, data sekolah awal, dan membership untuk pembuatnya.
 
-## Dua kategori akun
+## Akun terpadu dan profil domain
 
-Identitas utama dicatat di `accounts`, sedangkan detail kategori disimpan pada
-dua tabel terpisah:
+Identitas utama dicatat di `accounts`, membership sekolah di `users`, dan hak
+akses di `user_roles`. Tabel berikut masih menyimpan metadata kompatibilitas:
 
 - `operational_accounts`: akun staf sekolah/yayasan dan guru.
 - `family_accounts`: akun orang tua/wali dan siswa.
 
-Database menolak role keluarga pada akun operasional serta menolak role
-operasional pada akun keluarga. Satu user juga tidak dapat mencampur kedua
-kategori role.
+Metadata kategori tidak membatasi login atau role. Satu membership dapat
+memiliki kombinasi role operasional, keluarga, dan tenant; permission efektif
+merupakan gabungan seluruh role tersebut.
 
 Template role operasional awal adalah `Staff`, `Guru`, `Kepala Sekolah`,
 `Staff Yayasan`, dan `Kepala Yayasan`. Hak akses tetap berasal dari permission,
@@ -31,7 +31,7 @@ sehingga template dapat dikembangkan tanpa mengubah kategori akun.
 
 1. Orang tua memilih **Daftar sebagai orang tua** pada halaman login, lalu
    memasukkan kode sekolah, identitas, dan kata sandi.
-2. Sistem membuat akun `FAMILY` dengan role `PARENT`. Bila belum ada siswa yang
+2. Sistem membuat membership dengan role `PARENT`. Bila belum ada siswa yang
    terhubung, pengguna langsung masuk ke ruang PPDB.
 3. Form pendaftaran hanya tersedia ketika periode sekolah berstatus `OPEN` dan
    tanggal saat ini berada dalam rentang periode.
@@ -62,6 +62,5 @@ siswa dari area operasional.
 | `POST /api/v1/sites` | Membuat lokasi baru dalam yayasan |
 | `POST /api/v1/sites/:id/switch` | Berpindah lokasi dan menerbitkan sesi tenant tujuan |
 
-Pemisahan ini bersifat logis di satu PostgreSQL agar transaksi, foreign key, dan
-proses enrollment tetap atomik. Bila kelak diperlukan database fisik terpisah,
-`operational_accounts` dan `family_accounts` menjadi batas migrasi yang jelas.
+Seluruh identity, membership, role, dan profil domain tetap berada di satu
+PostgreSQL agar transaksi, foreign key, dan proses enrollment tetap atomik.

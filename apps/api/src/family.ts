@@ -12,7 +12,7 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
-import { hash } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { createApplication } from "./admissions";
@@ -78,7 +78,7 @@ export class PublicFamilyController {
     const input = parentRegistration.parse(body);
     const tenant = (
       await this.db.query(
-        `SELECT t.id FROM organizations o
+        `SELECT t.id,o.id AS organization_id FROM organizations o
          JOIN organization_sites os ON os.organization_id=o.id
          JOIN tenants t ON t.id=os.tenant_id
          WHERE o.slug=$1 AND o.status='ACTIVE' AND t.status='ACTIVE'
@@ -88,40 +88,57 @@ export class PublicFamilyController {
     ).rows[0];
     if (!tenant) throw new NotFoundException("Yayasan tidak ditemukan");
     const result = await this.db.transaction(tenant.id, async (sql) => {
-      const existing = (
-        await sql.query("SELECT id FROM accounts WHERE email=$1", [input.email])
-      ).rows[0];
-      if (existing)
-        throw new ConflictException("Email sudah terdaftar. Silakan masuk.");
       const account = (
         await sql.query(
-          "INSERT INTO accounts(name,email,account_level) VALUES($1,$2,'FAMILY') RETURNING id",
+          `INSERT INTO accounts(name,email,account_level)
+           VALUES($1,$2,'FAMILY')
+           ON CONFLICT(email) DO UPDATE SET name=excluded.name
+           RETURNING id`,
           [input.name, input.email],
         )
       ).rows[0];
       await sql.query(
-        "INSERT INTO family_accounts(account_id,created_via) VALUES($1,'SELF_REGISTRATION')",
+        "INSERT INTO family_accounts(account_id,created_via) VALUES($1,'SELF_REGISTRATION') ON CONFLICT DO NOTHING",
         [account.id],
       );
-      const user = (
+      let user = (
         await sql.query(
-          `INSERT INTO users(tenant_id,account_id,name,email,password_hash)
-           VALUES($1,$2,$3,$4,$5) RETURNING id`,
-          [
-            tenant.id,
-            account.id,
-            input.name,
-            input.email,
-            await hash(input.password, 12),
-          ],
+          "SELECT id,password_hash FROM users WHERE tenant_id=$1 AND account_id=$2",
+          [tenant.id, account.id],
         )
       ).rows[0];
+      if (user && !(await compare(input.password, user.password_hash)))
+        throw new ConflictException(
+          "Email sudah terdaftar. Masuk dengan kata sandi akun yang ada.",
+        );
+      if (!user)
+        user = (
+          await sql.query(
+            `INSERT INTO users(tenant_id,account_id,name,email,password_hash)
+             VALUES($1,$2,$3,$4,$5) RETURNING id`,
+            [
+              tenant.id,
+              account.id,
+              input.name,
+              input.email,
+              await hash(input.password, 12),
+            ],
+          )
+        ).rows[0];
       await sql.query(
-        "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'PARENT')",
+        "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'PARENT') ON CONFLICT DO NOTHING",
         [tenant.id, user.id],
       );
       await sql.query(
-        "INSERT INTO parents(tenant_id,user_id,name,email,phone) VALUES($1,$2,$3,$4,$5)",
+        `INSERT INTO user_bindings(account_id,organization_id,tenant_id,role_id)
+         VALUES($1,$2,$3,'PARENT') ON CONFLICT DO NOTHING`,
+        [account.id, tenant.organization_id, tenant.id],
+      );
+      await sql.query(
+        `INSERT INTO parents(tenant_id,user_id,name,email,phone)
+         VALUES($1,$2,$3,$4,$5)
+         ON CONFLICT(tenant_id,user_id) DO UPDATE
+         SET name=excluded.name,email=excluded.email,phone=excluded.phone`,
         [tenant.id, user.id, input.name, input.email, input.phone],
       );
       return {
@@ -146,7 +163,7 @@ export class FamilyController {
   constructor(@Inject(Database) private readonly db: Database) {}
 
   private family(actor: AuthRequest["actor"]) {
-    if (actor.account_level !== "FAMILY")
+    if (!actor.roles.some((role) => role === "PARENT" || role === "STUDENT"))
       throw new BadRequestException("Fitur ini khusus akun siswa dan wali");
   }
 
@@ -369,6 +386,11 @@ export class FamilyController {
       await sql.query(
         "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'STUDENT')",
         [req.actor.tenant_id, user.id],
+      );
+      await sql.query(
+        `INSERT INTO user_bindings(account_id,organization_id,tenant_id,role_id)
+         VALUES($1,$2,$3,'STUDENT') ON CONFLICT DO NOTHING`,
+        [account.id, req.actor.organization_id, req.actor.tenant_id],
       );
       await sql.query(
         "UPDATE students SET user_id=$3,email=COALESCE(email,$4) WHERE tenant_id=$1 AND id=$2",

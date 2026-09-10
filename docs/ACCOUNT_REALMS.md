@@ -1,30 +1,69 @@
-# Isolasi tiga ruang akun
+# Akun dan login terpadu
 
-LangkahSiswa membagi autentikasi menjadi tiga ruang akun yang dipilih sebelum
-email dan kata sandi divalidasi.
+LangkahSiswa menggunakan satu halaman dan satu proses login untuk admin, guru,
+siswa, wali, serta pengelola kantin. Pengguna memasukkan kode yayasan, email,
+dan kata sandi; backend menemukan membership aktif lalu memuat seluruh role dan
+permission pengguna tersebut. Jenis pengguna tidak pernah diminta sebelum
+kredensial diverifikasi.
 
-| Pilihan login | Realm data | Store identitas | Ruang aplikasi |
-| --- | --- | --- | --- |
-| Admin Sekolah | `OPERATIONAL` | `operational_accounts` | Yayasan, staf, guru, dan supervisi sekolah |
-| Siswa / Wali | `FAMILY` | `family_accounts` | Data milik keluarga, siswa, PPDB, tagihan, dan informasi sekolah |
-| Tenant Sekolah | `TENANT` | `tenant_accounts` | Kantin dan layanan komersial sekolah |
+## Model penyimpanan
 
-`accounts` hanya menjadi registry identitas global. Login selalu dimulai dari
-jenis akun yang dipilih dan hanya boleh membaca store realm tersebut. Sesi juga
-memuat kembali realm dari database pada setiap request sehingga perubahan role
-tidak dapat memindahkan akun ke ruang lain.
+```text
+organizations                    yayasan / tenant boundary utama
+  └── organization_sites         sekolah / operational scope
 
-Kode yang dimasukkan pada halaman login adalah `organizations.slug`, yaitu kode
-yayasan. Kode tersebut memilih sekolah utama sebagai konteks awal. Akun Admin
-Sekolah kemudian dapat berpindah lokasi di dalam yayasan yang sama sesuai
-membership dan permission.
+accounts                         identity global
+  ├── user_bindings              binding yayasan atau sekolah + role
+  └── users                      session membership pada sekolah aktif
+        ├── teachers             profil domain guru (opsional)
+        ├── students             profil domain siswa (opsional)
+        └── parents              profil domain wali (opsional)
+```
 
-Role adalah lapisan kedua setelah realm. Tabel `roles` menyimpan
-`account_level`; setiap role, termasuk role buatan pengguna, hanya dapat diberikan
-kepada akun dalam realm yang sama. Permission tetap berasal dari
-`role_permissions`. Role bawaan Tenant Sekolah adalah `CANTEEN_ADMIN`.
+`accounts` menyimpan identitas global. `user_bindings` adalah sumber kebenaran
+akses dan role, sedangkan `users` menyediakan membership untuk session pada
+sekolah yang sedang aktif. Permission efektif berasal dari binding aktif dan
+`role_permissions`.
 
-Ketiga store saat ini berada di database PostgreSQL platform yang sama agar
-transaksi membership tetap atomik, tetapi dipisahkan oleh tabel, constraint, dan
-validator. Pemindahan ke tiga server/database fisik dapat dilakukan kemudian
-melalui adapter identity-store tanpa mengubah kontrak login atau token.
+Binding dengan `tenant_id = NULL` berlaku untuk seluruh sekolah di bawah
+yayasan. Binding dengan `tenant_id` tertentu hanya berlaku pada sekolah/site
+tersebut. Kolom ini merepresentasikan school security scope karena pada model
+database saat ini satu `tenant` operasional adalah satu sekolah/site.
+
+Record domain tidak bergantung pada tersedianya akun. Siswa, guru, atau wali
+dapat dibuat dan dioperasikan terlebih dahulu; kolom `user_id` baru diisi saat
+akses login diaktifkan. Karena itu impor siswa tidak otomatis memperbesar tabel
+akun login.
+
+Satu akun boleh memiliki banyak binding dan role. Contohnya, satu orang dapat
+menjadi pengurus yayasan pada seluruh sekolah, `TEACHER` di SMP, dan `PARENT` di
+SD tanpa membuat akun kedua. Menu yang tampil merupakan gabungan permission
+dalam konteks sekolah aktif.
+
+## Pemilihan sekolah dan session
+
+Login hanya meminta kode yayasan dan kredensial. Backend memilih membership
+aktif yang dapat diakses melalui binding. Daftar sekolah di kartu sidebar juga
+dibentuk dari binding, bukan dari data yang dikirim bebas oleh frontend.
+
+Saat kartu sekolah dipilih, `POST /api/v1/sites/:id/switch` memverifikasi bahwa
+target masih berada di yayasan yang sama dan tercakup binding aktif. Backend
+kemudian menerbitkan access token dan refresh token baru untuk sekolah tersebut.
+Jika pengurus yayasan belum mempunyai membership teknis pada target, membership
+dibuat saat switch tanpa memperluas binding aksesnya.
+
+## Status akun
+
+Status membership adalah `PENDING`, `ACTIVE`, `LOCKED`, `SUSPENDED`, atau
+`ARCHIVED`. Hanya `ACTIVE` yang dapat login. Menonaktifkan login tidak menghapus
+profil domain maupun data historis seperti nilai, absensi, tagihan, dan
+transaksi.
+
+## Kompatibilitas migrasi
+
+Kolom `accounts.account_level` dan tabel `operational_accounts`,
+`family_accounts`, serta `tenant_accounts` masih dipertahankan sementara agar
+data dan integrasi lama tidak rusak. Sejak migrasi `021_unified_accounts.sql`,
+semuanya hanya metadata kompatibilitas dan bukan lagi batas login atau
+otorisasi. Klien lama masih boleh mengirim `account_type`, tetapi nilainya
+diabaikan oleh proses autentikasi.

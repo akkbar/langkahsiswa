@@ -71,7 +71,8 @@ const siteSelect = `
   SELECT t.id,t.name,t.slug,os.site_code,os.is_primary,
    o.id AS organization_id,o.name AS organization_name,
    (t.id=$3) AS current,
-   COALESCE(array_agg(DISTINCT ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL),'{}') AS roles,
+   COALESCE(array_agg(DISTINCT binding.role_id) FILTER (WHERE binding.role_id IS NOT NULL),'{}') AS roles,
+   CASE WHEN bool_or(binding.tenant_id IS NULL) THEN 'FOUNDATION' ELSE 'SCHOOL' END AS binding_scope,
    sch.id AS school_id,
    sch.name AS school_name,
    sch.address,
@@ -95,8 +96,9 @@ const siteSelect = `
    JOIN organization_sites os ON os.organization_id=current_site.organization_id
    JOIN organizations o ON o.id=os.organization_id AND o.status='ACTIVE'
    JOIN tenants t ON t.id=os.tenant_id AND t.status='ACTIVE'
-   JOIN users u ON u.tenant_id=t.id AND u.account_id=$1 AND u.active
-   LEFT JOIN user_roles ur ON ur.tenant_id=u.tenant_id AND ur.user_id=u.id
+   JOIN user_bindings binding ON binding.account_id=$1
+    AND binding.organization_id=o.id AND binding.status='ACTIVE'
+    AND (binding.tenant_id IS NULL OR binding.tenant_id=t.id)
    LEFT JOIN schools sch ON sch.tenant_id=t.id
    LEFT JOIN teachers pt ON pt.tenant_id=sch.tenant_id AND pt.id=sch.principal_teacher_id
    WHERE current_site.tenant_id=$2
@@ -116,8 +118,12 @@ async function assertSiteAccess(
       `SELECT 1 FROM organization_sites current_site
        JOIN organization_sites target_site ON target_site.organization_id=current_site.organization_id
        JOIN tenants target ON target.id=target_site.tenant_id AND target.status='ACTIVE'
-       JOIN users u ON u.tenant_id=target.id AND u.account_id=$1 AND u.active
-       WHERE current_site.tenant_id=$2 AND target.id=$3`,
+       WHERE current_site.tenant_id=$2 AND target.id=$3
+       AND EXISTS(SELECT 1 FROM user_bindings binding
+        WHERE binding.account_id=$1
+        AND binding.organization_id=current_site.organization_id
+        AND binding.status='ACTIVE'
+        AND (binding.tenant_id IS NULL OR binding.tenant_id=target.id))`,
       [accountId, currentTenantId, targetTenantId],
     )
   ).rowCount;
@@ -488,12 +494,7 @@ export class SitesController {
           ],
         )
       ).rows[0];
-      const sourceRoles = (
-        await sql.query(
-          "SELECT role_id FROM user_roles WHERE tenant_id=$1 AND user_id=$2",
-          [req.actor.tenant_id, req.actor.id],
-        )
-      ).rows.map((row) => row.role_id);
+      const sourceRoles = req.actor.roles;
       const targetRole = sourceRoles.includes("FOUNDATION_HEAD")
         ? "FOUNDATION_HEAD"
         : "SCHOOL_ADMIN";
@@ -532,6 +533,16 @@ export class SitesController {
         )
       ).rows[0];
       await ensureGradeLevels(sql, tenant.id, school.id, input.school_level);
+      await sql.query(
+        `INSERT INTO user_bindings(account_id,organization_id,tenant_id,role_id)
+         VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+        [
+          req.actor.account_id,
+          organization.id,
+          targetRole === "FOUNDATION_HEAD" ? null : tenant.id,
+          targetRole,
+        ],
+      );
       return {
         ...tenant,
         site_code: input.slug,
@@ -551,23 +562,75 @@ export class SitesController {
     const targetId = uuid.parse(id);
     const target = (
       await this.db.query(
-        `SELECT target_user.id AS user_id,target.id AS tenant_id
+        `SELECT target_user.id AS user_id,target_user.active AS user_active,
+          target_user.status AS user_status,target.id AS tenant_id,
+          current_site.organization_id
          FROM organization_sites current_site
          JOIN organization_sites target_site
            ON target_site.organization_id=current_site.organization_id
          JOIN tenants target ON target.id=target_site.tenant_id AND target.status='ACTIVE'
-         JOIN users target_user
-           ON target_user.tenant_id=target.id AND target_user.account_id=$1 AND target_user.active
-         WHERE current_site.tenant_id=$2 AND target.id=$3`,
+         LEFT JOIN users target_user
+           ON target_user.tenant_id=target.id AND target_user.account_id=$1
+         WHERE current_site.tenant_id=$2 AND target.id=$3
+         AND EXISTS(SELECT 1 FROM user_bindings binding
+          WHERE binding.account_id=$1
+          AND binding.organization_id=current_site.organization_id
+          AND binding.status='ACTIVE'
+          AND (binding.tenant_id IS NULL OR binding.tenant_id=target.id))`,
         [req.actor.account_id, req.actor.tenant_id, targetId],
       )
     ).rows[0];
     if (!target) throw new NotFoundException("Akses lokasi tidak ditemukan");
+    if (
+      target.user_id &&
+      (!target.user_active || target.user_status !== "ACTIVE")
+    )
+      throw new NotFoundException("Membership sekolah tidak aktif");
 
-    const result = await this.db.transaction(target.tenant_id, async (sql) => ({
-      ...(await this.auth.tokens(sql, target.user_id, target.tenant_id, req)),
-      user: await this.auth.actor(target.user_id, target.tenant_id),
-    }));
+    const result = await this.db.transaction(target.tenant_id, async (sql) => {
+      let targetUserId = target.user_id;
+      if (!targetUserId) {
+        const source = (
+          await sql.query(
+            `SELECT name,email,password_hash FROM users
+             WHERE tenant_id=$1 AND id=$2 AND account_id=$3`,
+            [req.actor.tenant_id, req.actor.id, req.actor.account_id],
+          )
+        ).rows[0];
+        if (!source) throw new NotFoundException("Akun sumber tidak ditemukan");
+        targetUserId = (
+          await sql.query(
+            `INSERT INTO users(tenant_id,account_id,name,email,password_hash)
+             VALUES($1,$2,$3,$4,$5) RETURNING id`,
+            [
+              target.tenant_id,
+              req.actor.account_id,
+              source.name,
+              source.email,
+              source.password_hash,
+            ],
+          )
+        ).rows[0].id;
+      }
+      const effectiveRoles = (
+        await sql.query(
+          `SELECT DISTINCT role_id FROM user_bindings
+           WHERE account_id=$1 AND organization_id=$2 AND status='ACTIVE'
+           AND (tenant_id IS NULL OR tenant_id=$3)`,
+          [req.actor.account_id, target.organization_id, target.tenant_id],
+        )
+      ).rows;
+      for (const binding of effectiveRoles)
+        await sql.query(
+          `INSERT INTO user_roles(tenant_id,user_id,role_id)
+           VALUES($1,$2,$3) ON CONFLICT DO NOTHING`,
+          [target.tenant_id, targetUserId, binding.role_id],
+        );
+      return {
+        ...(await this.auth.tokens(sql, targetUserId, target.tenant_id, req)),
+        user: await this.auth.actor(targetUserId, target.tenant_id),
+      };
+    });
     refreshCookie(
       res,
       result.refresh_token,

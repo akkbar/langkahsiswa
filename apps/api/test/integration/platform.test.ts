@@ -617,7 +617,7 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         teacherAuth = await login("school-a", "teacher@a.test");
         assert.equal(teacherAuth.user.account_level, "OPERATIONAL");
         assert.equal(teacherAuth.user.account_type, "SCHOOL_ADMIN");
-        await request(
+        const legacyTypedLogin = await request(
           "auth/login",
           "POST",
           {
@@ -627,8 +627,9 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
             password: "Password!2026",
           },
           undefined,
-          401,
+          201,
         );
+        assert.deepEqual(legacyTypedLogin.user.roles, ["TEACHER"]);
         await request(
           "students",
           "POST",
@@ -651,23 +652,15 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         parentAuth = await login("school-a", "parent@a.test");
         assert.equal(parentAuth.user.account_level, "FAMILY");
         assert.equal(parentAuth.user.account_type, "FAMILY");
-        await post(
-          "users",
-          {
-            name: "Kategori Campuran",
-            email: "mixed@a.test",
-            password: "Password!2026",
-            roles: ["STAFF", "PARENT"],
-          },
-          400,
-        );
-        await assert.rejects(
-          db.query(
-            "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'TEACHER')",
-            [tenantA.id, p.id],
-          ),
-          /role realm must match account realm/,
-        );
+        const mixed = await post("users", {
+          name: "Peran Campuran",
+          email: "mixed@a.test",
+          password: "Password!2026",
+          roles: ["STAFF", "PARENT"],
+        });
+        const mixedAuth = await login("school-a", "mixed@a.test");
+        assert.ok(mixed.id);
+        assert.deepEqual(mixedAuth.user.roles.sort(), ["PARENT", "STAFF"]);
         const canteen = await post("users", {
           name: "Admin Kantin",
           email: "kantin@a.test",
@@ -1058,6 +1051,11 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         await db.query(
           "INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,'SUPER_ADMIN')",
           [tenantA.id, auth.user.id],
+        );
+        await db.query(
+          `INSERT INTO user_bindings(account_id,organization_id,tenant_id,role_id)
+           VALUES($1,$2,NULL,'SUPER_ADMIN') ON CONFLICT DO NOTHING`,
+          [auth.user.account_id, auth.user.organization_id],
         );
         const tenant = await post("tenants", {
           name: "Sekolah Baru",
