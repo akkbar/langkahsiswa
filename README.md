@@ -39,8 +39,10 @@ Panduan modul: [Keuangan/POS](docs/FINANCE.md),
 [Flutter dan Firebase](docs/MOBILE_NOTIFICATIONS.md),
 [login Google](docs/GOOGLE_LOGIN.md),
 [akun, multi-lokasi, dan PPDB keluarga](docs/ACCOUNT_LEVELS_PPDB.md),
+[realm role dan permission CRUD](docs/PERMISSIONS.md),
 [PPDB/manajemen berkas](docs/ADMISSIONS_FILES.md),
 [website builder](docs/WEBSITE_BUILDER.md),
+[modul pondok dan Islamic school](docs/BOARDING_MODULES.md),
 [operasional dan keamanan](docs/OPERATIONS_SECURITY.md), serta
 [catatan phase 23](docs/PHASE_23_DEFERRED.md).
 Google/Firebase memerlukan konfigurasi proyek sendiri; tanpa kredensial,

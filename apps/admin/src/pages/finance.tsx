@@ -55,7 +55,7 @@ export function PageHeading({
   eyebrow = "KEUANGAN SEKOLAH",
 }: {
   title: string;
-  description: string;
+  description?: string;
   eyebrow?: string;
 }) {
   return (
@@ -63,7 +63,7 @@ export function PageHeading({
       <div>
         <span className="eyebrow">{eyebrow}</span>
         <h1>{title}</h1>
-        <p className="muted">{description}</p>
+        {description && <p className="muted">{description}</p>}
       </div>
     </div>
   );

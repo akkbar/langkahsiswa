@@ -86,12 +86,12 @@ Secret JWT dibuat acak oleh setup. Kredensial contoh khusus development.
 ## Alur penggunaan admin
 
 1. Mulai dari **Dashboard**. Akun yayasan dapat memilih atau menambah lokasi
-   sekolah; menu **Data Sekolah** ditempatkan paling bawah.
-2. **Data Sekolah → Pengaturan Sekolah → Tahun Ajaran → Semester → Tingkat Kelas**.
+   sekolah; menu **Yayasan** ditempatkan paling bawah.
+2. **Yayasan → Profil Yayasan → List Sekolah → Tahun Ajaran → Semester → Tingkat Kelas**.
 3. Buat **Guru, Orang Tua, Siswa, Staf**. **Wali Siswa** menghubungkan banyak
    siswa dengan banyak orang tua; wali utama dibatasi satu per siswa.
 4. Buat **Kelas** dengan wali kelas dan **Mata Pelajaran**.
-5. **Kompetensi Guru** menghubungkan guru dengan pelajaran. **Pelajaran Kelas**
+5. Kompetensi guru dikelola pada **Yayasan → Semua Akun → Guru** dengan menghubungkan guru ke mata pelajaran dan tingkat kelas. **Pelajaran Kelas**
    menghubungkan kelas, pelajaran, guru, dan semester. **Anggota Kelas**
    menempatkan siswa dalam satu kelas per tahun ajaran.
 6. Atur **Jadwal Pelajaran**. Hari 1=Senin hingga 7=Minggu. Jam yang bersebelahan
@@ -199,6 +199,13 @@ Prefix seluruh endpoint bisnis: `/api/v1`. Health berada di `/health`.
 | `/report-cards/:id`                                                                   | GET snapshot dan item                                                  |
 | `/report-cards/:id/review`, `/approve`, `/publish`, `/reopen`                         | POST `{notes?}`                                                        |
 | `/report-cards/:id/pdf`                                                               | GET PDF dengan bearer token                                            |
+| `/boarding/overview`, `/boarding/portal`                                              | GET operasional pondok dan rekap siswa/wali                            |
+| `/boarding/modules/:key`                                                              | POST aktivasi modul per sekolah                                        |
+| `/boarding/tahfidz`, `/boarding/tahfidz-targets`                                      | POST setoran dan target Tahfidz/Tahsin                                 |
+| `/boarding/worship-habits`, `/boarding/worship-records`                              | POST definisi dan catatan Mutabaah                                     |
+| `/boarding/character`, `/boarding/health`                                             | POST catatan adab/akhlak dan kesehatan                                 |
+| `/boarding/diniyah-subjects`, `/boarding/diniyah-progress`                            | POST pelajaran dan progres Diniyah                                     |
+| `/boarding/inspections`, `/boarding/leaves/gate`                                      | POST inspeksi kamar serta pencatatan gerbang                           |
 
 Resource list mendukung `page`, `limit` (maksimum 200), `search` pada nama,
 dan filter ID relasi seperti `class_id`, `semester_id`, `category_id`.

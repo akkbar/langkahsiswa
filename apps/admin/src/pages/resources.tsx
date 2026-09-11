@@ -50,18 +50,12 @@ export function ResourcePage({
     (catalog.schools || []).some((school) =>
       ["SD", "SMP", "SMA"].includes(String(school.school_level)),
     );
-  const writable =
-    !gradeLevelsLocked &&
-    can(
-      user,
-      `${definition.permission}.${definition.permission === "student" ? "create" : "write"}`,
-    );
+  const creatable =
+    !gradeLevelsLocked && can(user, `${definition.permission}.create`);
   const editable =
-    !gradeLevelsLocked &&
-    can(
-      user,
-      `${definition.permission}.${definition.permission === "student" ? "update" : "write"}`,
-    );
+    !gradeLevelsLocked && can(user, `${definition.permission}.update`);
+  const deletable =
+    !gradeLevelsLocked && can(user, `${definition.permission}.delete`);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -82,6 +76,14 @@ export function ResourcePage({
       active = false;
     };
   }, [resource, page, search, version]);
+  useEffect(() => {
+    if (!editor) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) setEditor(null);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [editor, busy]);
   function open(row: Entity | null, mode: "create" | "edit" | "detail") {
     const initial: Record<string, unknown> = {};
     for (const f of definition.fields)
@@ -121,6 +123,20 @@ export function ResourcePage({
       setBusy(false);
     }
   }
+  async function remove(row: Entity) {
+    if (!window.confirm(`Hapus ${definition.title.toLowerCase()} ini?`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`${resource}/${row.id}`, { method: "DELETE" });
+      await refresh();
+      setVersion((value) => value + 1);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   function display(row: Entity, f: Field) {
     const value = row[f.key];
     if (value === null || value === undefined) return "—";
@@ -131,26 +147,40 @@ export function ResourcePage({
         catalog,
       );
     if (typeof value === "boolean") return value ? "Ya" : "Tidak";
+    if (typeof value === "string" && statusLabels[value])
+      return statusLabels[value];
     return String(value);
   }
   return (
-    <>
+    <div className="resource-page">
       <div className="page-title">
         <div>
           <span className="eyebrow">{definition.group}</span>
           <h1>{definition.title}</h1>
-          <p className="muted">
-            Kelola data {definition.title.toLowerCase()} sekolah Anda.
-          </p>
         </div>
-        {writable && (
-          <button className="primary" onClick={() => open(null, "create")}>
-            + Tambah{" "}
-            {definition.title === "Pengaturan Sekolah"
-              ? "sekolah"
-              : definition.title.toLowerCase()}
-          </button>
-        )}
+        <div className="page-actions">
+          <div className="filter-toolbar">
+            <input
+              aria-label={`Cari ${definition.title}`}
+              placeholder="Cari data…"
+              type="search"
+              value={search}
+              onChange={(event) => {
+                setPage(1);
+                setSearch(event.target.value);
+              }}
+            />
+            <span className="muted">{result.total} data</span>
+          </div>
+          {creatable && (
+            <button className="primary" onClick={() => open(null, "create")}>
+              + Tambah{" "}
+              {definition.title === "Pengaturan Sekolah"
+                ? "sekolah"
+                : definition.title.toLowerCase()}
+            </button>
+          )}
+        </div>
       </div>
       <ErrorBox error={!editor ? error : ""} />
       {gradeLevelsLocked && (
@@ -160,20 +190,6 @@ export function ResourcePage({
         </p>
       )}
       <section className="card">
-        <div className="toolbar">
-          <strong>{result.total} data</strong>
-          {definition.fields.some((f) => f.key === "name") && (
-            <input
-              aria-label="Cari nama"
-              placeholder="Cari berdasarkan nama…"
-              value={search}
-              onChange={(e) => {
-                setPage(1);
-                setSearch(e.target.value);
-              }}
-            />
-          )}
-        </div>
         {loading ? (
           <div className="empty" role="status">
             Memuat data…
@@ -201,6 +217,14 @@ export function ResourcePage({
                       </button>
                       {editable && (
                         <button onClick={() => open(row, "edit")}>Edit</button>
+                      )}
+                      {deletable && (
+                        <button
+                          disabled={busy}
+                          onClick={() => void remove(row)}
+                        >
+                          Hapus
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -232,22 +256,37 @@ export function ResourcePage({
         </div>
       </section>
       {editor && (
-        <div className="modal-backdrop">
-          <section
-            className="modal"
+        <div className="school-drawer-layer">
+          <button
+            className="school-drawer-backdrop"
+            aria-label={`Tutup editor ${definition.title}`}
+            disabled={busy}
+            onClick={() => setEditor(null)}
+          />
+          <aside
+            className="school-drawer"
             role="dialog"
             aria-modal="true"
             aria-label={`${editor.mode === "create" ? "Tambah" : editor.mode === "edit" ? "Edit" : "Detail"} ${definition.title}`}
           >
-            <div className="modal-heading">
-              <h2>
-                {editor.mode === "create"
-                  ? "Tambah"
-                  : editor.mode === "edit"
-                    ? "Edit"
-                    : "Detail"}{" "}
-                {definition.title}
-              </h2>
+            <div className="school-drawer-header">
+              <div>
+                <span className="eyebrow">
+                  {editor.mode === "create"
+                    ? "DATA BARU"
+                    : editor.mode === "edit"
+                      ? "EDIT DATA"
+                      : "DETAIL DATA"}
+                </span>
+                <h2>
+                  {editor.mode === "create"
+                    ? "Tambah"
+                    : editor.mode === "edit"
+                      ? "Edit"
+                      : "Detail"}{" "}
+                  {definition.title}
+                </h2>
+              </div>
               <button
                 aria-label="Tutup"
                 disabled={busy}
@@ -270,7 +309,7 @@ export function ResourcePage({
                 <button onClick={() => setEditor(null)}>Tutup</button>
               </>
             ) : (
-              <form onSubmit={save}>
+              <form className="school-editor-form" onSubmit={save}>
                 <div className="form-grid">
                   {definition.fields.map((f) => (
                     <FieldInput
@@ -287,7 +326,7 @@ export function ResourcePage({
                     />
                   ))}
                 </div>
-                <div className="form-footer">
+                <div className="school-drawer-actions">
                   <button
                     type="button"
                     disabled={busy}
@@ -301,9 +340,9 @@ export function ResourcePage({
                 </div>
               </form>
             )}
-          </section>
+          </aside>
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -25,6 +25,16 @@ akses dan role, sedangkan `users` menyediakan membership untuk session pada
 sekolah yang sedang aktif. Permission efektif berasal dari binding aktif dan
 `role_permissions`.
 
+Role terlebih dahulu dikelompokkan ke realm `OPERATIONAL`, `FAMILY`, atau
+`TENANT`. Di dalam realm tersebut setiap role dapat memiliki set permission yang
+berbeda. Aturan CRUD dan visibilitas menu dijelaskan di
+[PERMISSIONS.md](PERMISSIONS.md).
+
+Yayasan merupakan badan hukum di atas sekolah, dengan data legal, pengurus,
+perizinan, dokumen, dan perpajakan yang terpisah dari identitas operasional
+sekolah. Rincian modelnya dijelaskan di
+[FOUNDATION_PROFILE.md](FOUNDATION_PROFILE.md).
+
 Binding dengan `tenant_id = NULL` berlaku untuk seluruh sekolah di bawah
 yayasan. Binding dengan `tenant_id` tertentu hanya berlaku pada sekolah/site
 tersebut. Kolom ini merepresentasikan school security scope karena pada model
@@ -51,6 +61,15 @@ target masih berada di yayasan yang sama dan tercakup binding aktif. Backend
 kemudian menerbitkan access token dan refresh token baru untuk sekolah tersebut.
 Jika pengurus yayasan belum mempunyai membership teknis pada target, membership
 dibuat saat switch tanpa memperluas binding aksesnya.
+
+Area navigasi **Yayasan** dan **Pengaturan** hanya tersedia untuk realm
+`OPERATIONAL`. Setiap submenu tetap membutuhkan permission `read` miliknya;
+permission CRUD terkait menentukan tombol dan endpoint mutasi yang tersedia.
+Halaman **Semua Akun** menjadi pusat mapping membership akun pada sekolah aktif,
+profil orang tua/wali, guru, atau staff, serta kepemilikan siswa. Satu akun guru
+atau staff dapat sekaligus mempunyai profil wali dan relasi ke anak tanpa
+membuat identity login kedua. Saat relasi anak ditambahkan, role `PARENT`
+ditambahkan pada binding sekolah secara aditif tanpa menghapus role operational.
 
 ## Status akun
 

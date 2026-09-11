@@ -1,4 +1,4 @@
-﻿import type { Actor, Entity, Page } from "../../../packages/shared-types/src";
+import type { Actor, Entity, Page } from "../../../packages/shared-types/src";
 let token = "";
 export function setToken(value: string) {
   token = value;
@@ -65,8 +65,11 @@ export async function api<T = any>(
   }
   return res.json();
 }
-export const send = (path: string, data: unknown, method = "POST") =>
-  api(path, { method, body: JSON.stringify(data) });
+export const send = <T = any>(
+  path: string,
+  data: unknown,
+  method = "POST",
+): Promise<T> => api<T>(path, { method, body: JSON.stringify(data) });
 export async function all(key: string) {
   let data: Entity[] = [];
   let page = 1;

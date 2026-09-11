@@ -19,7 +19,7 @@ import {
 import { createHash, randomBytes } from "node:crypto";
 import type { Response } from "express";
 import { z } from "zod";
-import { allow, AuthGuard, type AuthRequest } from "./auth";
+import { allow, allowOperational, AuthGuard, type AuthRequest } from "./auth";
 import { Database, type Sql } from "./database";
 import {
   fileCategories,
@@ -761,6 +761,7 @@ export class FilesController {
     @Req() req: AuthRequest,
     @Query() query: Record<string, unknown>,
   ) {
+    allowOperational(req.actor);
     allow(req.actor, "file.read");
     const x = pageInput
       .extend({
@@ -797,7 +798,8 @@ export class FilesController {
   }
 
   @Post() async upload(@Req() req: AuthRequest, @Body() body: unknown) {
-    allow(req.actor, "file.write");
+    allowOperational(req.actor);
+    allow(req.actor, "file.create");
     const x = fileInput
       .extend({
         category: z.enum(fileCategories),
@@ -842,6 +844,7 @@ export class FilesController {
     @Param("id") id: string,
     @Res() res: Response,
   ) {
+    allowOperational(req.actor);
     allow(req.actor, "file.read");
     uuid.parse(id);
     const row = (
@@ -875,7 +878,8 @@ export class FilesController {
     @Param("id") id: string,
     @Body() body: unknown,
   ) {
-    allow(req.actor, "file.write");
+    allowOperational(req.actor);
+    allow(req.actor, "file.update");
     uuid.parse(id);
     const x = z
       .object({
@@ -898,7 +902,8 @@ export class FilesController {
     @Req() req: AuthRequest,
     @Param("id") id: string,
   ) {
-    allow(req.actor, "file.write");
+    allowOperational(req.actor);
+    allow(req.actor, "file.delete");
     uuid.parse(id);
     const used = (
       await this.db.query(
@@ -924,7 +929,8 @@ export class FilesController {
     @Req() req: AuthRequest,
     @Param("id") id: string,
   ) {
-    allow(req.actor, "file.write");
+    allowOperational(req.actor);
+    allow(req.actor, "file.update");
     uuid.parse(id);
     const row = (
       await this.db.query(

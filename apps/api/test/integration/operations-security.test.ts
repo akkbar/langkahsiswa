@@ -114,6 +114,13 @@ test("Phase 20–22 and 24: domains, boarding, library, wallet and security", as
       address: "Jl. Operasi",
       phone: "021",
     });
+    const year = await post("academic-years", {
+      school_id: school.id,
+      name: "2026/2027",
+      start_date: "2026-07-01",
+      end_date: "2027-06-30",
+      is_active: true,
+    });
     const student = await post("students", {
       nis: "OPS-001",
       name: "Siswa Pondok",
@@ -158,7 +165,14 @@ test("Phase 20–22 and 24: domains, boarding, library, wallet and security", as
       decision: "APPROVED",
       notes: "Diizinkan",
     });
-    await post(`boarding/leaves/${leave.id}/status`, { status: "RETURNED" });
+    await post("boarding/leaves/gate", {
+      gate_token: leave.gate_token,
+      direction: "OUT",
+    });
+    await post("boarding/leaves/gate", {
+      gate_token: leave.gate_token,
+      direction: "IN",
+    });
     const visit = await post("boarding/visits", {
       student_id: student.id,
       parent_id: parent.id,
@@ -184,6 +198,76 @@ test("Phase 20–22 and 24: domains, boarding, library, wallet and security", as
       score: 88,
       notes: "Baik",
     });
+    await post("boarding/tahfidz-targets", {
+      student_id: student.id,
+      academic_year_id: year.id,
+      target_type: "TAHFIDZ",
+      target_name: "Juz 30",
+      target_juz: 1,
+      start_date: "2026-07-01",
+      end_date: "2027-06-30",
+    });
+    const habit = await post("boarding/worship-habits", {
+      school_id: school.id,
+      name: "Salat Subuh berjamaah",
+      category: "Salat wajib",
+    });
+    await post("boarding/worship-records", {
+      student_id: student.id,
+      habit_id: habit.id,
+      record_date: "2026-09-09",
+      status: "DONE",
+      notes: "",
+    });
+    await post("boarding/character", {
+      student_id: student.id,
+      record_date: "2026-09-09",
+      dimension: "Tanggung jawab",
+      record_type: "POSITIVE",
+      severity: null,
+      points: 5,
+      notes: "Menjadi imam",
+      follow_up: "",
+      approval_status: "NOT_REQUIRED",
+    });
+    await post("boarding/health", {
+      student_id: student.id,
+      visited_at: "2026-09-09T01:00:00.000Z",
+      complaint: "Pusing",
+      diagnosis: "Kelelahan",
+      treatment: "Istirahat",
+      medicine: null,
+      referral: null,
+      allergy_notes: null,
+      activity_excuse_until: null,
+      guardian_notified: false,
+    });
+    const diniyah = await post("boarding/diniyah-subjects", {
+      school_id: school.id,
+      name: "Fikih",
+      book_name: "Safinatun Najah",
+      teacher_id: null,
+    });
+    await post("boarding/diniyah-progress", {
+      student_id: student.id,
+      diniyah_subject_id: diniyah.id,
+      chapter: "Thaharah",
+      status: "IN_PROGRESS",
+      score: 85,
+      notes: "",
+    });
+    await post("boarding/inspections", {
+      room_id: room.id,
+      inspected_at: "2026-09-09T02:00:00.000Z",
+      cleanliness_score: 90,
+      facility_condition: "Baik",
+      notes: "",
+    });
+    await post("boarding/modules/MUTABAAH", {
+      school_id: school.id,
+      enabled: true,
+      config: {},
+    });
     await post("boarding/activities", {
       dormitory_id: dormitory.id,
       activity_date: "2026-09-09",
@@ -204,11 +288,17 @@ test("Phase 20–22 and 24: domains, boarding, library, wallet and security", as
     );
     const charged = await post(`boarding/laundry/${laundry.id}/charge`);
     assert.ok(charged.wallet_transaction_id);
-    assert.equal(
-      (await request("boarding/overview", "GET", undefined, admin))
-        .assignments[0].id,
-      assignment.id,
+    const boardingOverview = await request(
+      "boarding/overview",
+      "GET",
+      undefined,
+      admin,
     );
+    assert.equal(boardingOverview.assignments[0].id, assignment.id);
+    assert.equal(boardingOverview.worship_records.length, 1);
+    assert.equal(boardingOverview.character.length, 1);
+    assert.equal(boardingOverview.health.length, 1);
+    assert.equal(boardingOverview.diniyah_progress.length, 1);
     await post(`boarding/assignments/${assignment.id}/end`, {
       end_date: "2026-09-10",
     });
@@ -225,14 +315,17 @@ test("Phase 20–22 and 24: domains, boarding, library, wallet and security", as
       book_id: book.id,
       barcode: "LIB-001",
     });
+    const futureDueDate = new Date(Date.now() + 14 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
     const borrowing = await post("library/borrowings", {
       copy_id: copy.id,
       student_id: student.id,
-      due_date: "2026-09-09",
+      due_date: futureDueDate,
     });
     await post(
       "library/borrowings",
-      { copy_id: copy.id, student_id: student.id, due_date: "2026-09-09" },
+      { copy_id: copy.id, student_id: student.id, due_date: futureDueDate },
       409,
     );
     await post(`library/borrowings/${borrowing.id}/return`, {

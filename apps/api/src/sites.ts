@@ -67,6 +67,79 @@ async function ensureGradeLevels(
     );
 }
 
+async function syncSchoolLicense(
+  sql: Sql,
+  tenantId: string,
+  schoolId: string,
+  licenseType: "ESTABLISHMENT" | "OPERATIONAL" | "ACCREDITATION",
+  licenseNumber: string | null | undefined,
+  values: {
+    issue_date?: string | null;
+    valid_from?: string | null;
+    valid_until?: string | null;
+    accreditation_grade?: string | null;
+  },
+) {
+  const current = (
+    await sql.query(
+      `SELECT * FROM school_licenses
+       WHERE tenant_id=$1 AND school_id=$2 AND license_type=$3 AND status='ACTIVE'
+       ORDER BY created_at DESC LIMIT 1`,
+      [tenantId, schoolId, licenseType],
+    )
+  ).rows[0];
+  if (
+    licenseNumber === undefined &&
+    !Object.values(values).some((entry) => entry !== undefined)
+  )
+    return;
+  if (licenseNumber === undefined) licenseNumber = current?.license_number;
+  if (!licenseNumber) {
+    if (current)
+      await sql.query(
+        "UPDATE school_licenses SET status='REVOKED',updated_at=now() WHERE tenant_id=$1 AND id=$2",
+        [tenantId, current.id],
+      );
+    return;
+  }
+  if (current?.license_number === licenseNumber) {
+    await sql.query(
+      `UPDATE school_licenses SET issue_date=$3,valid_from=$4,valid_until=$5,
+       accreditation_grade=$6,updated_at=now() WHERE tenant_id=$1 AND id=$2`,
+      [
+        tenantId,
+        current.id,
+        values.issue_date || null,
+        values.valid_from || null,
+        values.valid_until || null,
+        values.accreditation_grade || null,
+      ],
+    );
+    return;
+  }
+  if (current)
+    await sql.query(
+      "UPDATE school_licenses SET status='REVOKED',updated_at=now() WHERE tenant_id=$1 AND id=$2",
+      [tenantId, current.id],
+    );
+  await sql.query(
+    `INSERT INTO school_licenses(
+      tenant_id,school_id,license_type,license_number,issue_date,valid_from,
+      valid_until,accreditation_grade
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [
+      tenantId,
+      schoolId,
+      licenseType,
+      licenseNumber,
+      values.issue_date || null,
+      values.valid_from || null,
+      values.valid_until || null,
+      values.accreditation_grade || null,
+    ],
+  );
+}
+
 const siteSelect = `
   SELECT t.id,t.name,t.slug,os.site_code,os.is_primary,
    o.id AS organization_id,o.name AS organization_name,
@@ -85,6 +158,46 @@ const siteSelect = `
    sch.dapodik_id,
    sch.nsm,
    sch.emis_id,
+   sch.code,
+   sch.education_form,
+   sch.ownership_status,
+   sch.province_id,
+   sch.city_id,
+   sch.district_id,
+   sch.village_id,
+   sch.postal_code,
+   (SELECT sl.license_number FROM school_licenses sl
+    WHERE sl.tenant_id=sch.tenant_id AND sl.school_id=sch.id
+     AND sl.license_type='ESTABLISHMENT' AND sl.status='ACTIVE'
+    ORDER BY sl.created_at DESC LIMIT 1) AS establishment_decree_number,
+   (SELECT sl.issue_date FROM school_licenses sl
+    WHERE sl.tenant_id=sch.tenant_id AND sl.school_id=sch.id
+     AND sl.license_type='ESTABLISHMENT' AND sl.status='ACTIVE'
+    ORDER BY sl.created_at DESC LIMIT 1) AS establishment_decree_date,
+   (SELECT sl.license_number FROM school_licenses sl
+    WHERE sl.tenant_id=sch.tenant_id AND sl.school_id=sch.id
+     AND sl.license_type='OPERATIONAL' AND sl.status='ACTIVE'
+    ORDER BY sl.created_at DESC LIMIT 1) AS operational_license_number,
+   (SELECT sl.valid_from FROM school_licenses sl
+    WHERE sl.tenant_id=sch.tenant_id AND sl.school_id=sch.id
+     AND sl.license_type='OPERATIONAL' AND sl.status='ACTIVE'
+    ORDER BY sl.created_at DESC LIMIT 1) AS operational_license_start,
+   (SELECT sl.valid_until FROM school_licenses sl
+    WHERE sl.tenant_id=sch.tenant_id AND sl.school_id=sch.id
+     AND sl.license_type='OPERATIONAL' AND sl.status='ACTIVE'
+    ORDER BY sl.created_at DESC LIMIT 1) AS operational_license_end,
+   (SELECT sl.accreditation_grade FROM school_licenses sl
+    WHERE sl.tenant_id=sch.tenant_id AND sl.school_id=sch.id
+     AND sl.license_type='ACCREDITATION' AND sl.status='ACTIVE'
+    ORDER BY sl.created_at DESC LIMIT 1) AS accreditation,
+   (SELECT sl.license_number FROM school_licenses sl
+    WHERE sl.tenant_id=sch.tenant_id AND sl.school_id=sch.id
+     AND sl.license_type='ACCREDITATION' AND sl.status='ACTIVE'
+    ORDER BY sl.created_at DESC LIMIT 1) AS accreditation_number,
+   (SELECT sl.valid_until FROM school_licenses sl
+    WHERE sl.tenant_id=sch.tenant_id AND sl.school_id=sch.id
+     AND sl.license_type='ACCREDITATION' AND sl.status='ACTIVE'
+    ORDER BY sl.created_at DESC LIMIT 1) AS accreditation_valid_until,
    COALESCE(pt.name, sch.principal_name) AS principal_name,
    COALESCE((
      SELECT json_agg(json_build_object('id', mf.id, 'file_name', mf.file_name, 'mime_type', mf.mime_type) ORDER BY fl.created_at)
@@ -104,7 +217,9 @@ const siteSelect = `
    WHERE current_site.tenant_id=$2
    GROUP BY t.id,t.name,t.slug,os.site_code,os.is_primary,o.id,o.name,
      sch.id,sch.name,sch.address,sch.phone,sch.principal_teacher_id,sch.principal_name,
-     sch.education_authority,sch.school_level,sch.npsn,sch.nss,sch.dapodik_id,sch.nsm,sch.emis_id,pt.name
+     sch.education_authority,sch.school_level,sch.npsn,sch.nss,sch.dapodik_id,sch.nsm,sch.emis_id,
+     sch.code,sch.education_form,sch.ownership_status,sch.province_id,sch.city_id,
+     sch.district_id,sch.village_id,sch.postal_code,pt.name
    ORDER BY os.is_primary DESC,t.name,t.id`;
 
 async function assertSiteAccess(
@@ -226,6 +341,19 @@ export class SitesController {
         fields.push(`phone=$${index++}`);
         values.push(input.phone);
       }
+      for (const schoolField of [
+        "education_form",
+        "ownership_status",
+        "province_id",
+        "city_id",
+        "district_id",
+        "village_id",
+        "postal_code",
+      ] as const)
+        if (input[schoolField] !== undefined) {
+          fields.push(`${schoolField}=$${index++}`);
+          values.push(input[schoolField] || null);
+        }
       if (input.education_authority !== undefined) {
         fields.push(`education_authority=$${index++}`);
         values.push(input.education_authority);
@@ -282,6 +410,37 @@ export class SitesController {
           input.name,
         ]);
       }
+
+      await syncSchoolLicense(
+        sql,
+        targetId,
+        school.id,
+        "ESTABLISHMENT",
+        input.establishment_decree_number,
+        { issue_date: input.establishment_decree_date },
+      );
+      await syncSchoolLicense(
+        sql,
+        targetId,
+        school.id,
+        "OPERATIONAL",
+        input.operational_license_number,
+        {
+          valid_from: input.operational_license_start,
+          valid_until: input.operational_license_end,
+        },
+      );
+      await syncSchoolLicense(
+        sql,
+        targetId,
+        school.id,
+        "ACCREDITATION",
+        input.accreditation_number,
+        {
+          accreditation_grade: input.accreditation,
+          valid_until: input.accreditation_valid_until,
+        },
+      );
 
       if (!fields.length) {
         return (
@@ -506,8 +665,10 @@ export class SitesController {
         await sql.query(
           `INSERT INTO schools(
           tenant_id,name,address,phone,principal_name,principal_teacher_id,
-          education_authority,school_level,npsn,nss,dapodik_id,nsm,emis_id
-         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          education_authority,school_level,npsn,nss,dapodik_id,nsm,emis_id,
+          code,education_form,ownership_status,province_id,city_id,district_id,
+          village_id,postal_code
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
          RETURNING id`,
           [
             tenant.id,
@@ -529,10 +690,48 @@ export class SitesController {
             input.education_authority === "KEMENAG"
               ? input.emis_id || null
               : null,
+            input.slug,
+            input.education_form || null,
+            input.ownership_status,
+            input.province_id || null,
+            input.city_id || null,
+            input.district_id || null,
+            input.village_id || null,
+            input.postal_code || null,
           ],
         )
       ).rows[0];
       await ensureGradeLevels(sql, tenant.id, school.id, input.school_level);
+      await syncSchoolLicense(
+        sql,
+        tenant.id,
+        school.id,
+        "ESTABLISHMENT",
+        input.establishment_decree_number,
+        { issue_date: input.establishment_decree_date },
+      );
+      await syncSchoolLicense(
+        sql,
+        tenant.id,
+        school.id,
+        "OPERATIONAL",
+        input.operational_license_number,
+        {
+          valid_from: input.operational_license_start,
+          valid_until: input.operational_license_end,
+        },
+      );
+      await syncSchoolLicense(
+        sql,
+        tenant.id,
+        school.id,
+        "ACCREDITATION",
+        input.accreditation_number,
+        {
+          accreditation_grade: input.accreditation,
+          valid_until: input.accreditation_valid_until,
+        },
+      );
       await sql.query(
         `INSERT INTO user_bindings(account_id,organization_id,tenant_id,role_id)
          VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,

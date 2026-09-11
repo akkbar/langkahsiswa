@@ -8,6 +8,8 @@ import {
   Get,
   Inject,
   Injectable,
+  Param,
+  Patch,
   Post,
   Req,
   Res,
@@ -46,12 +48,14 @@ const read = [
   "event.read",
   "notification.read",
   "site.read",
+  "foundation.read",
 ];
 export const rolePermissions: Record<Role, string[]> = {
   SUPER_ADMIN: ["*"],
   SCHOOL_ADMIN: ["*"],
   PRINCIPAL: [
     ...read,
+    "academic_setup.write",
     "report.approve",
     "report.publish",
     "event.write",
@@ -91,6 +95,7 @@ export const rolePermissions: Record<Role, string[]> = {
     "notification.read",
     "file.read",
     "site.read",
+    "foundation.read",
   ],
   STAFF: [
     "school.read",
@@ -105,6 +110,7 @@ export const rolePermissions: Record<Role, string[]> = {
     "event.read",
     "notification.read",
     "site.read",
+    "foundation.read",
   ],
   FOUNDATION_STAFF: [
     "school.read",
@@ -115,6 +121,8 @@ export const rolePermissions: Record<Role, string[]> = {
     "event.read",
     "admission.read",
     "site.read",
+    "foundation.read",
+    "academic_setup.read",
   ],
   FOUNDATION_HEAD: [
     "school.read",
@@ -129,7 +137,10 @@ export const rolePermissions: Record<Role, string[]> = {
     "admission.read",
     "audit.read",
     "site.read",
+    "foundation.read",
     "site.write",
+    "foundation.write",
+    "academic_setup.write",
   ],
   PARENT: [
     "report.own",
@@ -159,6 +170,7 @@ export const rolePermissions: Record<Role, string[]> = {
     "event.read",
     "notification.read",
     "site.read",
+    "foundation.read",
   ],
 };
 export function allow(actor: Actor, permission: string) {
@@ -167,6 +179,17 @@ export function allow(actor: Actor, permission: string) {
     !actor.permissions.includes(permission)
   )
     throw new ForbiddenException("Hak akses tidak mencukupi");
+}
+export function allowAny(actor: Actor, permissions: string[]) {
+  if (
+    !actor.permissions.includes("*") &&
+    !permissions.some((permission) => actor.permissions.includes(permission))
+  )
+    throw new ForbiddenException("Hak akses tidak mencukupi");
+}
+export function allowOperational(actor: Actor) {
+  if (actor.account_level !== "OPERATIONAL")
+    throw new ForbiddenException("Halaman ini hanya untuk akun operational");
 }
 export function isAdmin(actor: Actor) {
   return (
@@ -199,7 +222,14 @@ export async function initializeRoles(sql: Sql) {
         scope_level=excluded.scope_level`,
       [role, level, scopeLevel],
     );
-    for (const permission of rolePermissions[role]) {
+    const normalizedPermissions = new Set(rolePermissions[role]);
+    for (const permission of rolePermissions[role])
+      if (permission.endsWith(".write")) {
+        const area = permission.slice(0, -".write".length);
+        for (const action of ["create", "read", "update", "delete"])
+          normalizedPermissions.add(`${area}.${action}`);
+      }
+    for (const permission of normalizedPermissions) {
       await sql.query(
         "INSERT INTO permissions(id) VALUES($1) ON CONFLICT DO NOTHING",
         [permission],
@@ -275,7 +305,7 @@ export class AuthService {
       await this.db.query(
         `SELECT u.id,u.tenant_id,u.account_id,a.account_level,u.name,u.email,
          t.name AS tenant_name,t.slug AS tenant_slug,
-         o.id AS organization_id,o.name AS organization_name
+         o.id AS organization_id,o.name AS organization_name,o.slug AS organization_slug
          FROM users u
          JOIN tenants t ON t.id=u.tenant_id
          JOIN organization_sites os ON os.tenant_id=t.id
@@ -758,7 +788,8 @@ export class AuthController {
 export class UsersController {
   constructor(@Inject(Database) private readonly db: Database) {}
   @Get() async list(@Req() req: AuthRequest) {
-    allow(req.actor, "people.read");
+    allowOperational(req.actor);
+    allowAny(req.actor, ["user.read", "people.read"]);
     const data = (
       await this.db.query(
         `SELECT u.id,u.tenant_id,u.name,u.email,u.active,u.status,u.last_login_at,
@@ -775,7 +806,8 @@ export class UsersController {
     return { data, total: data.length, page: 1, limit: data.length };
   }
   @Post() async create(@Req() req: AuthRequest, @Body() body: unknown) {
-    allow(req.actor, "user.write");
+    allowOperational(req.actor);
+    allow(req.actor, "user.create");
     const input = userSchema.parse(body);
     return this.db.transaction(req.actor.tenant_id, async (sql) => {
       if (
@@ -884,6 +916,111 @@ export class UsersController {
           ],
         );
       return membership;
+    });
+  }
+
+  @Patch(":id/roles")
+  async addRoles(
+    @Req() req: AuthRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    allowOperational(req.actor);
+    allow(req.actor, "user.update");
+    const input = z
+      .object({ add: z.array(z.enum(roles)).min(1) })
+      .strict()
+      .parse(body);
+    uuid.parse(id);
+    if (
+      input.add.includes("SUPER_ADMIN") &&
+      !req.actor.roles.includes("SUPER_ADMIN")
+    )
+      throw new ForbiddenException(
+        "Hanya super admin yang dapat memberikan role SUPER_ADMIN",
+      );
+    return this.db.transaction(req.actor.tenant_id, async (sql) => {
+      const target = (
+        await sql.query(
+          `SELECT u.id,u.account_id,os.organization_id
+           FROM users u JOIN organization_sites os ON os.tenant_id=u.tenant_id
+           WHERE u.tenant_id=$1 AND u.id=$2`,
+          [req.actor.tenant_id, id],
+        )
+      ).rows[0];
+      if (!target) throw new BadRequestException("Akun tidak ditemukan");
+      const configuredRoles = (
+        await sql.query(
+          "SELECT id,scope_level FROM roles WHERE id=ANY($1::text[])",
+          [input.add],
+        )
+      ).rows;
+      if (configuredRoles.length !== new Set(input.add).size)
+        throw new BadRequestException("Role belum terdaftar");
+      if (
+        configuredRoles.some((role) => role.scope_level === "FOUNDATION") &&
+        !req.actor.roles.some((role) =>
+          ["SUPER_ADMIN", "FOUNDATION_HEAD"].includes(role),
+        )
+      )
+        throw new ForbiddenException(
+          "Hanya pengurus yayasan yang dapat memberikan role yayasan",
+        );
+      for (const role of configuredRoles) {
+        await sql.query(
+          `INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,$3)
+           ON CONFLICT DO NOTHING`,
+          [req.actor.tenant_id, id, role.id],
+        );
+        await sql.query(
+          `INSERT INTO user_bindings(account_id,organization_id,tenant_id,role_id)
+           VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+          [
+            target.account_id,
+            target.organization_id,
+            role.scope_level === "SCHOOL" ? req.actor.tenant_id : null,
+            role.id,
+          ],
+        );
+      }
+      if (input.add.some((role) => ["PARENT", "STUDENT"].includes(role)))
+        await sql.query(
+          "INSERT INTO family_accounts(account_id,created_via) VALUES($1,'SCHOOL_ADMIN') ON CONFLICT DO NOTHING",
+          [target.account_id],
+        );
+      if (
+        input.add.some(
+          (role) => !["PARENT", "STUDENT", "CANTEEN_ADMIN"].includes(role),
+        )
+      ) {
+        await sql.query(
+          `INSERT INTO operational_accounts(account_id,position) VALUES($1,$2)
+           ON CONFLICT DO NOTHING`,
+          [
+            target.account_id,
+            input.add.includes("FOUNDATION_HEAD")
+              ? "FOUNDATION_HEAD"
+              : input.add.includes("FOUNDATION_STAFF")
+                ? "FOUNDATION_STAFF"
+                : input.add.includes("PRINCIPAL")
+                  ? "PRINCIPAL"
+                  : input.add.includes("TEACHER")
+                    ? "TEACHER"
+                    : "STAFF",
+          ],
+        );
+        await sql.query(
+          `UPDATE accounts SET account_level='OPERATIONAL' WHERE id=$1`,
+          [target.account_id],
+        );
+      }
+      if (input.add.includes("CANTEEN_ADMIN"))
+        await sql.query(
+          `INSERT INTO tenant_accounts(account_id,tenant_kind)
+           VALUES($1,'CANTEEN') ON CONFLICT DO NOTHING`,
+          [target.account_id],
+        );
+      return { id, added_roles: input.add };
     });
   }
 }

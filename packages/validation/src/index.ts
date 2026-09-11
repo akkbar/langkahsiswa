@@ -112,6 +112,66 @@ export const resources: Record<string, Resource> = {
     ],
     immutable: ["academic_year_id"],
   },
+  "academic-calendar": {
+    table: "academic_calendar_events",
+    title: "Kalender Akademik",
+    group: "Administrasi",
+    permission: "academic",
+    schema: z.object({
+      academic_year_id: uuid,
+      title: name,
+      event_type: z.enum([
+        "EFFECTIVE_DAY",
+        "NATIONAL_HOLIDAY",
+        "SCHOOL_HOLIDAY",
+        "MPLS",
+        "MIDTERM",
+        "FINAL",
+        "REPORT",
+        "PROMOTION",
+        "GRADUATION",
+        "SCHOOL_EVENT",
+        "ANNOUNCEMENT",
+        "PARENT_MEETING",
+        "TEACHER_MEETING",
+        "STUDENT_ACTIVITY",
+        "DEADLINE",
+        "REMINDER",
+      ]),
+      start_date: date,
+      end_date: date,
+      notes: z.string().trim().max(500).nullable().optional(),
+    }),
+    fields: [
+      ref("academic_year_id", "Tahun ajaran", "academic-years"),
+      f("title", "Nama agenda"),
+      f("event_type", "Jenis agenda", {
+        type: "select",
+        options: [
+          "EFFECTIVE_DAY",
+          "NATIONAL_HOLIDAY",
+          "SCHOOL_HOLIDAY",
+          "MPLS",
+          "MIDTERM",
+          "FINAL",
+          "REPORT",
+          "PROMOTION",
+          "GRADUATION",
+          "SCHOOL_EVENT",
+          "ANNOUNCEMENT",
+          "PARENT_MEETING",
+          "TEACHER_MEETING",
+          "STUDENT_ACTIVITY",
+          "DEADLINE",
+          "REMINDER",
+        ],
+      }),
+      f("start_date", "Tanggal mulai", { type: "date" }),
+      f("end_date", "Tanggal selesai", { type: "date" }),
+      f("notes", "Catatan", { optional: true }),
+    ],
+    immutable: ["academic_year_id"],
+  },
   "grade-levels": {
     table: "grade_levels",
     title: "Tingkat Kelas",
@@ -126,6 +186,33 @@ export const resources: Record<string, Resource> = {
       ref("school_id", "Sekolah", "schools"),
       f("name", "Nama tingkat"),
       f("level", "Urutan", { type: "number", min: 1, max: 20 }),
+    ],
+    immutable: ["school_id"],
+  },
+  classrooms: {
+    table: "classrooms",
+    title: "Kelas",
+    group: "Master Sekolah",
+    permission: "school",
+    schema: z.object({
+      school_id: uuid,
+      name,
+      code,
+      building: z.string().trim().max(120).nullable().optional(),
+      floor: z.string().trim().max(40).nullable().optional(),
+      location: z.string().trim().max(240).nullable().optional(),
+      capacity: z.number().int().min(1).max(500),
+      is_active: z.boolean().default(true),
+    }),
+    fields: [
+      ref("school_id", "Sekolah", "schools"),
+      f("name", "Nama ruang"),
+      f("code", "Kode ruang"),
+      f("building", "Gedung", { optional: true }),
+      f("floor", "Lantai", { optional: true }),
+      f("location", "Posisi ruang", { optional: true }),
+      f("capacity", "Kapasitas", { type: "number", min: 1, max: 500 }),
+      f("is_active", "Tersedia", { type: "checkbox" }),
     ],
     immutable: ["school_id"],
   },
@@ -254,6 +341,23 @@ export const resources: Record<string, Resource> = {
     ],
     immutable: ["teacher_id", "subject_id"],
   },
+  "teacher-competencies": {
+    table: "teacher_competencies",
+    title: "Kompetensi Guru",
+    group: "Warga Sekolah",
+    permission: "people",
+    schema: z.object({
+      teacher_id: uuid,
+      subject_id: uuid,
+      grade_level_id: uuid,
+    }),
+    fields: [
+      ref("teacher_id", "Guru", "teachers"),
+      ref("subject_id", "Mata pelajaran", "subjects"),
+      ref("grade_level_id", "Tingkat kelas", "grade-levels"),
+    ],
+    immutable: ["teacher_id", "subject_id", "grade_level_id"],
+  },
   "class-subjects": {
     table: "class_subjects",
     title: "Pelajaran Kelas",
@@ -381,6 +485,116 @@ export const tenantSchema = z
     admin_password: z.string().min(12).max(100),
   })
   .strict();
+const optionalShortText = z.string().trim().max(255).nullable().optional();
+const optionalDate = date.nullable().optional();
+export const foundationProfileSchema = z
+  .object({
+    code: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(80)
+      .optional(),
+    name: name.optional(),
+    short_name: optionalShortText,
+    legal_name: optionalShortText,
+    legal_status: z.enum(["ACTIVE", "INACTIVE", "DISSOLVED"]).optional(),
+    legal_entity_number: optionalShortText,
+    legal_entity_date: optionalDate,
+    ahu_registration_number: optionalShortText,
+    deed_number: optionalShortText,
+    deed_date: optionalDate,
+    notary_name: optionalShortText,
+    npwp: optionalRegistryId,
+    nib: optionalRegistryId,
+    npyp: optionalRegistryId,
+    address: optionalText,
+    province_id: optionalRegistryId,
+    city_id: optionalRegistryId,
+    district_id: optionalRegistryId,
+    village_id: optionalRegistryId,
+    postal_code: optionalRegistryId,
+    phone: z.string().trim().max(30).nullable().optional(),
+    email: z.string().email().max(200).nullable().optional(),
+    website: z.string().url().max(500).nullable().optional(),
+    established_date: optionalDate,
+    foundation_type: z
+      .enum(["EDUCATION", "SOCIAL", "RELIGIOUS", "HUMANITARIAN", "OTHER"])
+      .optional(),
+  })
+  .strict();
+export const foundationOfficialSchema = z
+  .object({
+    person_name: name,
+    organ_type: z.enum(["PEMBINA", "PENGURUS", "PENGAWAS"]),
+    position: name,
+    start_date: date,
+    end_date: optionalDate,
+    is_active: z.boolean().default(true),
+    appointment_document_id: optionalId,
+  })
+  .strict();
+export const foundationLicenseSchema = z
+  .object({
+    license_type: z.enum([
+      "AHU_APPROVAL",
+      "NIB",
+      "TAX_REGISTRATION",
+      "DOMICILE",
+      "FOUNDATION_OPERATIONAL",
+      "OTHER",
+    ]),
+    license_number: code,
+    issued_by: optionalShortText,
+    issue_date: optionalDate,
+    valid_from: optionalDate,
+    valid_until: optionalDate,
+    document_id: optionalId,
+    status: z.enum(["DRAFT", "ACTIVE", "EXPIRED", "REVOKED"]).default("ACTIVE"),
+    notes: optionalText,
+  })
+  .strict();
+export const foundationDocumentSchema = z
+  .object({
+    document_type: code,
+    document_number: optionalShortText,
+    document_date: optionalDate,
+    file_url: z.string().url().max(1000).nullable().optional(),
+    valid_from: optionalDate,
+    valid_until: optionalDate,
+    is_active: z.boolean().default(true),
+    notes: optionalText,
+  })
+  .strict();
+export const foundationTaxSchema = z
+  .object({
+    npwp: optionalRegistryId,
+    tax_status: z.enum(["UNREGISTERED", "REGISTERED", "INACTIVE"]),
+    pkp_status: z.enum(["NON_PKP", "PKP"]),
+    tax_office_name: optionalShortText,
+    tax_office_code: optionalRegistryId,
+    bookkeeping_start_month: z.number().int().min(1).max(12),
+    fiscal_year_start: optionalDate,
+    tax_email: z.string().email().max(200).nullable().optional(),
+    tax_phone: z.string().trim().max(30).nullable().optional(),
+  })
+  .strict();
+const schoolLegalFields = {
+  education_form: optionalRegistryId,
+  ownership_status: z.enum(["PUBLIC", "PRIVATE"]).optional().default("PRIVATE"),
+  province_id: optionalRegistryId,
+  city_id: optionalRegistryId,
+  district_id: optionalRegistryId,
+  village_id: optionalRegistryId,
+  postal_code: optionalRegistryId,
+  establishment_decree_number: optionalRegistryId,
+  establishment_decree_date: optionalDate,
+  operational_license_number: optionalRegistryId,
+  operational_license_start: optionalDate,
+  operational_license_end: optionalDate,
+  accreditation: optionalRegistryId,
+  accreditation_number: optionalRegistryId,
+  accreditation_valid_until: optionalDate,
+};
 export const siteSchema = z
   .object({
     name,
@@ -406,6 +620,7 @@ export const siteSchema = z
     dapodik_id: optionalRegistryId,
     nsm: optionalRegistryId,
     emis_id: optionalRegistryId,
+    ...schoolLegalFields,
   })
   .strict();
 export const siteUpdateSchema = z
@@ -422,6 +637,21 @@ export const siteUpdateSchema = z
     dapodik_id: optionalRegistryId,
     nsm: optionalRegistryId,
     emis_id: optionalRegistryId,
+    education_form: optionalRegistryId,
+    ownership_status: z.enum(["PUBLIC", "PRIVATE"]).optional(),
+    province_id: optionalRegistryId,
+    city_id: optionalRegistryId,
+    district_id: optionalRegistryId,
+    village_id: optionalRegistryId,
+    postal_code: optionalRegistryId,
+    establishment_decree_number: optionalRegistryId,
+    establishment_decree_date: optionalDate,
+    operational_license_number: optionalRegistryId,
+    operational_license_start: optionalDate,
+    operational_license_end: optionalDate,
+    accreditation: optionalRegistryId,
+    accreditation_number: optionalRegistryId,
+    accreditation_valid_until: optionalDate,
   })
   .strict();
 export const sitePhotoSchema = z

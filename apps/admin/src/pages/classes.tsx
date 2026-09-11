@@ -189,7 +189,7 @@ export function ClassesPage({
     <>
       <div className="page-title">
         <div>
-          <span className="eyebrow">DATA SEKOLAH</span>
+          <span className="eyebrow">YAYASAN</span>
           <h1>Kelas</h1>
           <p className="muted">
             Atur beberapa kelas dalam tingkat yang sama, seperti 7A, 7B, dan 7C.

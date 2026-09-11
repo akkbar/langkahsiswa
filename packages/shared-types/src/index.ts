@@ -33,6 +33,7 @@ export interface Actor {
   tenant_slug: string;
   organization_id: string;
   organization_name: string;
+  organization_slug: string;
   roles: Role[];
   permissions: string[];
 }
@@ -65,6 +66,22 @@ export interface SiteSummary {
   dapodik_id?: string | null;
   nsm?: string | null;
   emis_id?: string | null;
+  code?: string | null;
+  education_form?: string | null;
+  ownership_status?: "PUBLIC" | "PRIVATE";
+  province_id?: string | null;
+  city_id?: string | null;
+  district_id?: string | null;
+  village_id?: string | null;
+  postal_code?: string | null;
+  establishment_decree_number?: string | null;
+  establishment_decree_date?: string | null;
+  operational_license_number?: string | null;
+  operational_license_start?: string | null;
+  operational_license_end?: string | null;
+  accreditation?: string | null;
+  accreditation_number?: string | null;
+  accreditation_valid_until?: string | null;
   photos?: SitePhoto[];
 }
 export interface SiteProfile {
@@ -87,6 +104,22 @@ export interface SiteProfile {
   dapodik_id: string | null;
   nsm: string | null;
   emis_id: string | null;
+  code: string | null;
+  education_form: string | null;
+  ownership_status: "PUBLIC" | "PRIVATE";
+  province_id: string | null;
+  city_id: string | null;
+  district_id: string | null;
+  village_id: string | null;
+  postal_code: string | null;
+  establishment_decree_number: string | null;
+  establishment_decree_date: string | null;
+  operational_license_number: string | null;
+  operational_license_start: string | null;
+  operational_license_end: string | null;
+  accreditation: string | null;
+  accreditation_number: string | null;
+  accreditation_valid_until: string | null;
   photos: SitePhoto[];
   teachers: Array<{ id: string; name: string; nip: string }>;
 }

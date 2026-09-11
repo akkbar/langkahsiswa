@@ -238,6 +238,114 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
       );
     });
     await t.test(
+      "foundation legal profile keeps identity, tax, officials, licenses, and documents separate",
+      async () => {
+        await request(
+          "foundation-profile",
+          "PATCH",
+          {
+            code: "school-a",
+            name: "Yayasan Sekolah A",
+            short_name: "YSA",
+            legal_name: "Yayasan Pendidikan Sekolah A",
+            legal_status: "ACTIVE",
+            legal_entity_number: "AHU-FOUNDATION-001",
+            legal_entity_date: "2020-01-15",
+            ahu_registration_number: "AHU.REG.001",
+            deed_number: "12",
+            deed_date: "2020-01-10",
+            notary_name: "Notaris Integrasi",
+            npwp: "010203040506000",
+            nib: "NIB-001",
+            npyp: "NPYP-001",
+            address: "Jalan Yayasan 1",
+            province_id: "31",
+            city_id: "3171",
+            district_id: "317101",
+            village_id: "31710101",
+            postal_code: "10110",
+            phone: "0215550001",
+            email: "office@school-a.test",
+            website: "https://school-a.test",
+            established_date: "2020-01-10",
+            foundation_type: "EDUCATION",
+          },
+          token,
+        );
+        const document = await post("foundation-profile/documents", {
+          document_type: "AKTA_PENDIRIAN",
+          document_number: "12",
+          document_date: "2020-01-10",
+          file_url: "https://school-a.test/docs/akta.pdf",
+          valid_from: "2020-01-10",
+          valid_until: null,
+          is_active: true,
+          notes: "Dokumen awal",
+        });
+        const official = await post("foundation-profile/officials", {
+          person_name: "Ketua Yayasan",
+          organ_type: "PENGURUS",
+          position: "Ketua",
+          start_date: "2026-01-01",
+          end_date: null,
+          is_active: true,
+          appointment_document_id: document.id,
+        });
+        const license = await post("foundation-profile/licenses", {
+          license_type: "AHU_APPROVAL",
+          license_number: "AHU-FOUNDATION-001",
+          issued_by: "Kementerian Hukum",
+          issue_date: "2020-01-15",
+          valid_from: "2020-01-15",
+          valid_until: null,
+          document_id: document.id,
+          status: "ACTIVE",
+          notes: null,
+        });
+        await request(
+          "foundation-profile/tax",
+          "PATCH",
+          {
+            npwp: "010203040506000",
+            tax_status: "REGISTERED",
+            pkp_status: "NON_PKP",
+            tax_office_name: "KPP Integrasi",
+            tax_office_code: "001",
+            bookkeeping_start_month: 1,
+            fiscal_year_start: "2026-01-01",
+            tax_email: "tax@school-a.test",
+            tax_phone: "0215550002",
+          },
+          token,
+        );
+        await request(
+          `foundation-profile/officials/${official.id}`,
+          "PATCH",
+          { position: "Ketua Umum" },
+          token,
+        );
+        const profile = await request(
+          "foundation-profile",
+          "GET",
+          undefined,
+          token,
+        );
+        assert.equal(profile.legal_name, "Yayasan Pendidikan Sekolah A");
+        assert.equal(profile.npyp, "NPYP-001");
+        assert.equal(profile.school_count, 1);
+        assert.equal(profile.tax_profile.tax_office_name, "KPP Integrasi");
+        assert.equal(profile.documents[0].id, document.id);
+        assert.equal(profile.officials[0].position, "Ketua Umum");
+        assert.equal(profile.licenses[0].id, license.id);
+        await request(
+          `foundation-profile/licenses/${license.id}`,
+          "DELETE",
+          undefined,
+          token,
+        );
+      },
+    );
+    await t.test(
       "one foundation account can create and switch between school sites",
       async () => {
         const initial = await request("sites", "GET", undefined, token);
@@ -254,6 +362,21 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
           npsn: "70000001",
           nsm: "121200000001",
           emis_id: "EMIS-0001",
+          education_form: "MTs",
+          ownership_status: "PRIVATE",
+          province_id: "31",
+          city_id: "3172",
+          district_id: "317201",
+          village_id: "31720101",
+          postal_code: "13110",
+          establishment_decree_number: "SK-PENDIRIAN-001",
+          establishment_decree_date: "2025-01-01",
+          operational_license_number: "IZIN-OPS-001",
+          operational_license_start: "2025-07-01",
+          operational_license_end: "2030-06-30",
+          accreditation: "A",
+          accreditation_number: "AKR-001",
+          accreditation_valid_until: "2030-12-31",
         });
         const available = await request("sites", "GET", undefined, token);
         assert.equal(available.total, 2);
@@ -267,6 +390,20 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         assert.equal(branchSummary.nsm, "121200000001");
         assert.equal(branchSummary.emis_id, "EMIS-0001");
         assert.equal(branchSummary.nss, null);
+        assert.equal(branchSummary.ownership_status, "PRIVATE");
+        assert.equal(branchSummary.operational_license_number, "IZIN-OPS-001");
+        assert.equal(branchSummary.accreditation, "A");
+        const kemenagDefaults = await db.query(
+          `SELECT code,name,curriculum_template_id FROM subjects
+           WHERE tenant_id=$1 AND school_id=$2 ORDER BY code`,
+          [branch.id, branchSummary.school_id],
+        );
+        assert.equal(kemenagDefaults.rowCount, 15);
+        assert.ok(
+          kemenagDefaults.rows.every((row) => row.curriculum_template_id),
+        );
+        assert.ok(kemenagDefaults.rows.some((row) => row.code === "QH"));
+        assert.ok(kemenagDefaults.rows.some((row) => row.code === "BAR"));
         await request(
           `sites/${branch.id}`,
           "PATCH",
@@ -277,6 +414,12 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
             dapodik_id: "DAPODIK-0001",
             nsm: null,
             emis_id: null,
+            operational_license_number: "IZIN-OPS-002",
+            operational_license_start: "2026-07-01",
+            operational_license_end: "2031-06-30",
+            accreditation: "B",
+            accreditation_number: "AKR-002",
+            accreditation_valid_until: "2031-12-31",
           },
           token,
         );
@@ -291,6 +434,30 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         assert.equal(updatedBranch.dapodik_id, "DAPODIK-0001");
         assert.equal(updatedBranch.nsm, null);
         assert.equal(updatedBranch.emis_id, null);
+        assert.equal(updatedBranch.operational_license_number, "IZIN-OPS-002");
+        assert.equal(updatedBranch.accreditation, "B");
+        const kemendikbudDefaults = await db.query(
+          `SELECT code,name FROM subjects
+           WHERE tenant_id=$1 AND school_id=$2 ORDER BY code`,
+          [branch.id, branchSummary.school_id],
+        );
+        assert.equal(kemendikbudDefaults.rowCount, 11);
+        assert.ok(kemendikbudDefaults.rows.some((row) => row.code === "PA"));
+        assert.ok(!kemendikbudDefaults.rows.some((row) => row.code === "QH"));
+        const licenseHistory = await db.query(
+          `SELECT license_type,license_number,status FROM school_licenses
+           WHERE tenant_id=$1 AND school_id=$2 ORDER BY created_at`,
+          [branch.id, branchSummary.school_id],
+        );
+        assert.deepEqual(
+          licenseHistory.rows
+            .filter((row) => row.license_type === "OPERATIONAL")
+            .map((row) => [row.license_number, row.status]),
+          [
+            ["IZIN-OPS-001", "REVOKED"],
+            ["IZIN-OPS-002", "ACTIVE"],
+          ],
+        );
         const switched = await request(
           `sites/${branch.id}/switch`,
           "POST",
@@ -492,6 +659,20 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         );
         assert.equal(found.total, 1);
         assert.equal(found.data[0].name, "Ahmad Pratama");
+        const disposableParent = await post("parents", { name: "Hapus Saya" });
+        await request(
+          `parents/${disposableParent.id}`,
+          "DELETE",
+          undefined,
+          token,
+        );
+        await request(
+          `parents/${disposableParent.id}`,
+          "GET",
+          undefined,
+          token,
+          404,
+        );
         await request(
           `students/${student.id}`,
           "GET",
@@ -661,6 +842,25 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         const mixedAuth = await login("school-a", "mixed@a.test");
         assert.ok(mixed.id);
         assert.deepEqual(mixedAuth.user.roles.sort(), ["PARENT", "STAFF"]);
+        for (const permission of [
+          "people.create",
+          "people.read",
+          "people.update",
+          "people.delete",
+        ])
+          assert.ok(mixedAuth.user.permissions.includes(permission));
+        await request(
+          `users/${mixed.id}/roles`,
+          "PATCH",
+          { add: ["TEACHER"] },
+          token,
+        );
+        const expandedMixedAuth = await login("school-a", "mixed@a.test");
+        assert.deepEqual(expandedMixedAuth.user.roles.sort(), [
+          "PARENT",
+          "STAFF",
+          "TEACHER",
+        ]);
         const canteen = await post("users", {
           name: "Admin Kantin",
           email: "kantin@a.test",

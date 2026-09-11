@@ -161,13 +161,26 @@ test("light and dark themes persist on desktop and mobile", async ({
   ]);
   await page.getByRole("button", { name: "Pengaturan" }).click();
   const expectedGroups: Array<[string, string[]]> = [
+    ["Guru", ["Input Nilai", "Penilaian", "Absensi"]],
     [
       "Administrasi",
-      ["Tahun Ajaran", "Semester", "Jadwal Pelajaran", "Bobot Penilaian"],
+      [
+        "Setup Tahun Ajaran",
+        "Semester",
+        "Kalender Akademik",
+        "Siswa",
+        "Pelajaran Kelas",
+        "Anggota Kelas",
+        "Jadwal Pelajaran",
+        "Bobot Penilaian",
+        "Wali Siswa",
+        "Raport Siswa",
+        "Kebijakan Raport",
+        "Pengaturan PPDB",
+      ],
     ],
     ["Website", ["Website Sekolah", "Custom Domain"]],
     ["PPDB", ["PPDB"]],
-    ["Komunikasi", ["Agenda Sekolah", "Notifikasi"]],
     ["Keuangan", ["Tagihan Sekolah", "Dompet Siswa", "Kasir Kantin"]],
   ];
   for (const [group, menuItems] of expectedGroups) {
@@ -180,6 +193,7 @@ test("light and dark themes persist on desktop and mobile", async ({
     ).toHaveText(menuItems);
     await page.getByRole("button", { name: group, exact: true }).click();
   }
+  await page.getByRole("button", { name: "Administrasi", exact: true }).click();
   await page.getByRole("link", { name: "Siswa", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Siswa", exact: true }),
@@ -636,61 +650,12 @@ test("parent pays invoice, tops up wallet, monitors POS limits, and receives tar
       ),
     ).toBe(true);
     await parent.setViewportSize({ width: 1440, height: 1000 });
-    await page.getByRole("button", { name: "Komunikasi", exact: true }).click();
-    await page
-      .getByRole("link", { name: "Agenda Sekolah", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Buat agenda", exact: true })
-      .click();
-    const title = `Pertemuan wali ${suffix}`;
-    await page.getByLabel("Judul agenda", { exact: true }).fill(title);
-    await page.getByLabel("Mulai", { exact: true }).fill("2026-09-20T09:00");
-    await page
-      .getByRole("combobox", { name: "Penerima agenda", exact: true })
-      .selectOption("STUDENT");
-    await page
-      .getByRole("combobox", { name: "Tujuan agenda", exact: true })
-      .selectOption(student.id);
-    await page
-      .getByLabel("Deskripsi", { exact: true })
-      .fill("Pertemuan perkembangan belajar siswa.");
-    await page
-      .getByRole("button", { name: "Simpan draft agenda", exact: true })
-      .click();
-    const event = page
-      .locator("article")
-      .filter({ has: page.getByRole("heading", { name: title, exact: true }) });
-    await event
-      .getByRole("button", { name: "Publikasikan agenda", exact: true })
-      .click();
     await expect(
-      page.getByText(
-        "Agenda dipublikasikan. Notifikasi tersedia untuk penerima.",
-        { exact: true },
-      ),
-    ).toBeVisible();
-    await parent
-      .getByRole("button", { name: "Komunikasi", exact: true })
-      .click();
-    await parent.getByRole("link", { name: "Notifikasi", exact: true }).click();
-    const notification = parent.locator("article").filter({
-      has: parent.getByRole("heading", { name: title, exact: true }),
-    });
-    await notification
-      .getByRole("button", { name: "Tandai sudah dibaca", exact: true })
-      .click();
+      page.getByRole("button", { name: "Komunikasi", exact: true }),
+    ).toHaveCount(0);
     await expect(
-      notification.getByText("Sudah dibaca", { exact: true }),
-    ).toBeVisible();
-    await notification.getByRole("link", { name: "Buka rincian" }).click();
-    await expect(
-      parent.getByRole("heading", { name: title, exact: true }),
-    ).toBeVisible();
-    await parent.screenshot({
-      path: "test-results/parent-events-dark.png",
-      fullPage: true,
-    });
+      parent.getByRole("button", { name: "Komunikasi", exact: true }),
+    ).toHaveCount(0);
     expect(browserErrors).toEqual([]);
   } finally {
     await parentContext.close();

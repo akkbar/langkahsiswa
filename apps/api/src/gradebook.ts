@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { scoresSchema, uuid } from "../../../packages/validation/src";
-import { AuthGuard, AuthRequest, allow } from "./auth";
+import { AuthGuard, AuthRequest, allow, allowOperational } from "./auth";
 import { Database } from "./database";
 import { notifyStudent } from "./notifications";
 import {
@@ -67,6 +67,7 @@ export class GradebookController {
     @Req() req: AuthRequest,
     @Query("assessment_id") id: string,
   ) {
+    allowOperational(req.actor);
     allow(req.actor, "grade.read");
     await record(this.db, "assessments", req.actor.tenant_id, uuid.parse(id));
     return {
@@ -79,6 +80,7 @@ export class GradebookController {
     };
   }
   @Put() async save(@Req() req: AuthRequest, @Body() body: unknown) {
+    allowOperational(req.actor);
     allow(req.actor, "grade.write");
     const input = scoresSchema.parse(body);
     uniqueStudents(input.scores);

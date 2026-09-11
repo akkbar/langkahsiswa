@@ -48,6 +48,10 @@ import { LibraryController } from "./library";
 import { AuditInterceptor, SecurityController } from "./security";
 import { SitesController } from "./sites";
 import { FamilyController, PublicFamilyController } from "./family";
+import { FoundationController } from "./foundation";
+import { CbtController } from "./cbt";
+import { AcademicYearSetupController } from "./academic-year-setup";
+
 @Injectable()
 export class RedisConnection implements OnModuleDestroy {
   readonly client = new Redis(
@@ -105,6 +109,7 @@ class HealthController {
   ],
   controllers: [
     HealthController,
+    CbtController,
     PublicAdmissionsController,
     PublicWebsiteController,
     PublicFamilyController,
@@ -128,6 +133,8 @@ class HealthController {
     SecurityController,
     SitesController,
     FamilyController,
+    FoundationController,
+    AcademicYearSetupController,
     ResourcesController,
   ],
 })

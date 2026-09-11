@@ -13,6 +13,22 @@ export const statusLabels: Record<string, string> = {
   REVIEWED: "Direview",
   APPROVED: "Disetujui",
   PUBLISHED: "Terbit",
+  EFFECTIVE_DAY: "Hari efektif",
+  NATIONAL_HOLIDAY: "Libur nasional",
+  SCHOOL_HOLIDAY: "Libur sekolah/yayasan",
+  MPLS: "MPLS",
+  MIDTERM: "PTS/UTS",
+  FINAL: "PAS/UAS",
+  REPORT: "Pembagian rapor",
+  PROMOTION: "Kenaikan kelas",
+  GRADUATION: "Kelulusan",
+  SCHOOL_EVENT: "Agenda sekolah",
+  ANNOUNCEMENT: "Pengumuman",
+  PARENT_MEETING: "Pertemuan orang tua/wali",
+  TEACHER_MEETING: "Rapat guru/staf",
+  STUDENT_ACTIVITY: "Kegiatan siswa",
+  DEADLINE: "Tenggat waktu",
+  REMINDER: "Pengingat",
 };
 export function label(
   row: Entity | undefined,
@@ -142,7 +158,11 @@ export function FieldInput({
                   {label(r, field.resource!, catalog)}
                 </option>
               ))
-            : field.options?.map((o) => <option key={o}>{o}</option>)}
+            : field.options?.map((o) => (
+                <option key={o} value={o}>
+                  {statusLabels[o] || o}
+                </option>
+              ))}
         </select>
       </label>
     );

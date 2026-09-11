@@ -20,11 +20,7 @@ import {
   financeAccess,
   financeAdmin,
 } from "./pages/finance";
-import {
-  EventsPage,
-  NotificationsPage,
-  PortalPage,
-} from "./pages/communications";
+import { PortalPage } from "./pages/communications";
 import { AdmissionsPage, FilesPage } from "./pages/admissions-files";
 import { PublicAdmissions } from "./pages/ppdb-public";
 import { WebsiteBuilderPage } from "./pages/website-builder";
@@ -35,8 +31,12 @@ import {
   SecurityPage,
 } from "./pages/operations";
 import { DashboardPage, SitesPage } from "./pages/dashboard";
-import { ClassesPage } from "./pages/classes";
 import { FamilyPage } from "./pages/family";
+import { SchoolAccountsPage } from "./pages/school-accounts";
+import { FoundationProfilePage } from "./pages/foundation-profile";
+import { CbtPage } from "./pages/cbt";
+import { SubjectsPage } from "./pages/subjects";
+import { AcademicYearSetupPage } from "./pages/academic-year-setup";
 const homeRoute = (user: Actor) => {
   const hasOperationalRole = user.roles.some(
     (role) => !["PARENT", "STUDENT", "CANTEEN_ADMIN"].includes(role),
@@ -44,29 +44,55 @@ const homeRoute = (user: Actor) => {
   if (hasOperationalRole) return "dashboard";
   if (user.roles.includes("PARENT")) return "family";
   if (user.roles.includes("STUDENT")) return "portal";
-  return user.roles.includes("CANTEEN_ADMIN") ? "pos" : "dashboard";
+  return "dashboard";
 };
 
 const groupedNavigation: Record<string, string[]> = {
+  Guru: ["grades", "assessments", "attendance"],
   Administrasi: [
+    "academic-year-setup",
     "academic-years",
     "semesters",
+    "academic-calendar",
+    "students",
+    "class-subjects",
+    "class-students",
     "timetables",
     "assessment-categories",
+    "student-guardians",
+    "report-cards",
+    "settings",
+    "admissions",
   ],
   Website: ["website", "domains"],
-  PPDB: ["admissions"],
+  PPDB: ["ppdb"],
   Pengaturan: ["security", "users", "files"],
-  Komunikasi: ["events", "notifications"],
   Keuangan: ["billing", "wallet", "pos"],
-  "Data Sekolah": [
+  Yayasan: [
+    "foundation-profile",
     "sites",
     "school-team",
     "subjects",
     "grade-levels",
-    "classes",
+    "classrooms",
   ],
 };
+const operationalNavigationGroups = new Set([
+  "Yayasan",
+  "Guru",
+  "Administrasi",
+  "Pengaturan",
+  "Keuangan",
+  "Website",
+]);
+const unmarkedNavigationGroups = new Set([
+  "Yayasan",
+  "Guru",
+  "Administrasi",
+  "Pengaturan",
+]);
+const unmarkedNavigationKeys = new Set(["dashboard", "portal", "cbt"]);
+const openAllNavigationKeys = new Set(["dashboard", "portal", "cbt", "ppdb"]);
 
 function initiallyOpenGroups() {
   const route = location.hash.slice(1);
@@ -75,42 +101,6 @@ function initiallyOpenGroups() {
       group,
       keys.includes(route),
     ]),
-  );
-}
-function SchoolTeamPage({
-  user,
-  catalog,
-  refresh,
-}: {
-  user: Actor;
-  catalog: Catalog;
-  refresh: () => Promise<void>;
-}) {
-  const [tab, setTab] = useState<"teachers" | "staff">("teachers");
-  return (
-    <>
-      <div className="tabs school-team-tabs" aria-label="Guru dan Staff">
-        <button
-          className={tab === "teachers" ? "primary" : ""}
-          onClick={() => setTab("teachers")}
-        >
-          Guru
-        </button>
-        <button
-          className={tab === "staff" ? "primary" : ""}
-          onClick={() => setTab("staff")}
-        >
-          Staff
-        </button>
-      </div>
-      <ResourcePage
-        key={tab}
-        resource={tab}
-        user={user}
-        catalog={catalog}
-        refresh={refresh}
-      />
-    </>
   );
 }
 function Workspace({
@@ -166,7 +156,7 @@ function Workspace({
     const keys = Object.keys(resources).filter((key) =>
       can(user, `${resources[key].permission}.read`),
     );
-    if (can(user, "people.read")) keys.push("users");
+    if (can(user, "people.read") || can(user, "user.read")) keys.push("users");
     const values = await Promise.all(keys.map((key) => all(key)));
     setCatalog(Object.fromEntries(keys.map((key, i) => [key, values[i]])));
   }
@@ -217,13 +207,13 @@ function Workspace({
     {
       key: "attendance",
       title: "Absensi",
-      group: "Kehadiran",
+      group: "Guru",
       permission: "attendance.read",
     },
     {
       key: "grades",
       title: "Input Nilai",
-      group: "Penilaian",
+      group: "Guru",
       permission: "grade.read",
     },
     {
@@ -236,18 +226,30 @@ function Workspace({
       key: "users",
       title: "Permission dan Role Setting",
       group: "Pengaturan",
-      permission: "user.write",
+      permission: "user.read",
     },
     {
       key: "settings",
       title: "Kebijakan Raport",
       group: "Administrasi",
-      permission: "school.write",
+      permission: "school.read",
     },
   ];
   const links = [
     ...Object.entries(resources)
-      .filter(([key]) => !["schools", "teachers", "staff"].includes(key))
+      .filter(
+        ([key]) =>
+          ![
+            "schools",
+            "teachers",
+            "staff",
+            "parents",
+            "academic-years",
+            "classes",
+            "teacher-subjects",
+            "teacher-competencies",
+          ].includes(key),
+      )
       .map(([key, r]) => ({
         key,
         title: r.title,
@@ -256,12 +258,26 @@ function Workspace({
       })),
     ...extra,
   ].filter((r) => can(user, r.permission));
+  if (can(user, "foundation.read"))
+    links.push({
+      key: "foundation-profile",
+      title: "Profil Yayasan",
+      group: "Yayasan",
+      permission: "foundation.read",
+    });
+  if (can(user, "academic_setup.read"))
+    links.push({
+      key: "academic-year-setup",
+      title: "Setup Tahun Ajaran",
+      group: "Administrasi",
+      permission: "academic_setup.read",
+    });
   if (can(user, "people.read"))
     links.push({
       key: "school-team",
-      title: "Guru dan Staff",
-      group: "Data Sekolah",
-      permission: "",
+      title: "Semua Akun",
+      group: "Yayasan",
+      permission: "people.read",
     });
   links.push(
     ...(user.roles.includes("PARENT")
@@ -270,15 +286,15 @@ function Workspace({
             key: "family",
             title: "Keluarga & PPDB",
             group: "Utama",
-            permission: "",
+            permission: "family.read",
           },
         ]
       : []),
     {
       key: "portal",
       title: "Ringkasan Siswa",
-      group: "Kehadiran",
-      permission: "",
+      group: "Dashboard",
+      permission: can(user, "student.read") ? "student.read" : "family.read",
     },
     ...(financeAccess(user)
       ? [
@@ -286,13 +302,17 @@ function Workspace({
             key: "billing",
             title: "Tagihan Sekolah",
             group: "Keuangan",
-            permission: "",
+            permission: can(user, "finance.read")
+              ? "finance.read"
+              : "family.read",
           },
           {
             key: "wallet",
             title: "Dompet Siswa",
             group: "Keuangan",
-            permission: "",
+            permission: can(user, "wallet.read")
+              ? "wallet.read"
+              : "family.read",
           },
         ]
       : []),
@@ -302,113 +322,119 @@ function Workspace({
             key: "pos",
             title: "Kasir Kantin",
             group: "Keuangan",
-            permission: "",
+            permission: "pos.read",
           },
         ]
       : []),
     {
-      key: "events",
-      title: "Agenda Sekolah",
-      group: "Komunikasi",
-      permission: "",
-    },
-    {
-      key: "notifications",
-      title: "Notifikasi",
-      group: "Komunikasi",
-      permission: "",
+      key: "cbt",
+      title: "Simulasi Siswa",
+      group: "Dashboard",
+      permission: "site.read",
     },
   );
   if (can(user, "admission.read"))
     links.push({
       key: "admissions",
+      title: "Pengaturan PPDB",
+      group: "Administrasi",
+      permission: "admission.read",
+    });
+  if (!user.roles.includes("STUDENT"))
+    links.push({
+      key: "ppdb",
       title: "PPDB",
       group: "PPDB",
-      permission: "",
+      permission: "site.read",
     });
   if (can(user, "file.read"))
     links.push({
       key: "files",
       title: "Management Berkas",
       group: "Pengaturan",
-      permission: "",
+      permission: "file.read",
     });
   if (can(user, "website.read"))
     links.push({
       key: "website",
       title: "Website Sekolah",
       group: "Website",
-      permission: "",
+      permission: "website.read",
     });
   if (can(user, "domain.read"))
     links.push({
       key: "domains",
       title: "Custom Domain",
       group: "Website",
-      permission: "",
+      permission: "domain.read",
     });
   if (can(user, "boarding.read"))
     links.push({
       key: "boarding",
       title: "Boarding School",
       group: "Operasional",
-      permission: "",
+      permission: "boarding.read",
     });
   if (can(user, "library.read"))
     links.push({
       key: "library",
       title: "Perpustakaan",
       group: "Operasional",
-      permission: "",
+      permission: "library.read",
     });
   if (can(user, "audit.read"))
     links.push({
       key: "security",
       title: "Audit & Keamanan",
       group: "Pengaturan",
-      permission: "",
+      permission: "audit.read",
     });
   if (can(user, "site.read"))
     links.push({
       key: "sites",
       title: "List Sekolah",
-      group: "Data Sekolah",
-      permission: "",
+      group: "Yayasan",
+      permission: "site.read",
     });
   links.unshift({
     key: "dashboard",
     title: "Dashboard",
     group: "Dashboard",
-    permission: "",
+    permission: "site.read",
   });
+  for (let index = links.length - 1; index >= 0; index--)
+    if (
+      !openAllNavigationKeys.has(links[index].key) &&
+      !can(user, links[index].permission)
+    )
+      links.splice(index, 1);
   const dataKeys = new Set([
     "sites",
+    "foundation-profile",
     "school-team",
     "subjects",
     "grade-levels",
-    "classes",
+    "classrooms",
   ]);
   const administrationKeys = new Set(groupedNavigation.Administrasi);
+  const teacherKeys = new Set(groupedNavigation.Guru);
   const settingsKeys = new Set(groupedNavigation.Pengaturan);
   const academicKeys = new Set([
-    "students",
-    "parents",
-    "student-guardians",
     "teacher-subjects",
     "class-subjects",
     "class-students",
     "attendance",
     "assessments",
     "grades",
-    "report-cards",
-    "settings",
   ]);
   for (const link of links) {
     if (link.key === "dashboard") link.group = "Dashboard";
-    else if (["portal", "family"].includes(link.key)) link.group = "Utama";
-    else if (dataKeys.has(link.key)) link.group = "Data Sekolah";
+    else if (["portal", "cbt"].includes(link.key)) link.group = "Dashboard";
+    else if (link.key === "family") link.group = "Utama";
+    else if (dataKeys.has(link.key)) link.group = "Yayasan";
     else if (settingsKeys.has(link.key)) link.group = "Pengaturan";
     else if (administrationKeys.has(link.key)) link.group = "Administrasi";
+    else if (teacherKeys.has(link.key)) link.group = "Guru";
     else if (groupedNavigation.Website.includes(link.key))
       link.group = "Website";
     else if (groupedNavigation.PPDB.includes(link.key)) link.group = "PPDB";
@@ -417,23 +443,25 @@ function Workspace({
       link.group = "Keuangan";
     else if (["boarding", "library"].includes(link.key))
       link.group = "Operasional";
-    else if (["events", "notifications"].includes(link.key))
-      link.group = "Komunikasi";
     else link.group = "Publikasi";
   }
+  if (user.account_level !== "OPERATIONAL")
+    for (let index = links.length - 1; index >= 0; index--)
+      if (operationalNavigationGroups.has(links[index].group))
+        links.splice(index, 1);
   const groupOrder = [
     "Dashboard",
     "Utama",
     "Akademik",
+    "Guru",
     "Keuangan",
     "Operasional",
-    "Komunikasi",
-    "Website",
     "PPDB",
     "Publikasi",
     "Administrasi",
     "Pengaturan",
-    "Data Sekolah",
+    "Yayasan",
+    "Website",
   ];
   const groups = groupOrder.filter((group) =>
     links.some((link) => link.group === group),
@@ -512,6 +540,10 @@ function Workspace({
                 href={`#${link.key}`}
                 aria-current={route === link.key ? "page" : undefined}
               >
+                {unmarkedNavigationGroups.has(group) ||
+                unmarkedNavigationKeys.has(link.key)
+                  ? ""
+                  : "* "}
                 {link.title}
                 {route === link.key && <span>›</span>}
               </a>
@@ -530,7 +562,11 @@ function Workspace({
                         }))
                       }
                     >
-                      <span>{group}</span>
+                      <span>
+                        {unmarkedNavigationGroups.has(group)
+                          ? group
+                          : `* ${group}`}
+                      </span>
                       <span aria-hidden="true">
                         {openGroups[group] ? "−" : "+"}
                       </span>
@@ -541,7 +577,7 @@ function Workspace({
                   </>
                 ) : (
                   <>
-                    <span className="nav-heading">{group}</span>
+                    <hr className="nav-divider" />
                     {items}
                   </>
                 )}
@@ -679,12 +715,24 @@ function Workspace({
               }}
               switchSite={switchSite}
             />
+          ) : route === "foundation-profile" ? (
+            <FoundationProfilePage user={user} />
+          ) : route === "academic-year-setup" ? (
+            <AcademicYearSetupPage
+              user={user}
+              catalog={catalog}
+              refresh={refresh}
+            />
           ) : route === "family" ? (
             <FamilyPage />
           ) : route === "school-team" ? (
-            <SchoolTeamPage user={user} catalog={catalog} refresh={refresh} />
-          ) : route === "classes" ? (
-            <ClassesPage user={user} catalog={catalog} refresh={refresh} />
+            <SchoolAccountsPage
+              user={user}
+              catalog={catalog}
+              refresh={refresh}
+            />
+          ) : route === "subjects" ? (
+            <SubjectsPage user={user} catalog={catalog} refresh={refresh} />
           ) : resources[route] ? (
             <ResourcePage
               key={route}
@@ -707,14 +755,12 @@ function Workspace({
             <WalletPage user={user} />
           ) : route === "pos" ? (
             <PosPage />
-          ) : route === "events" ? (
-            <EventsPage user={user} catalog={catalog} />
-          ) : route === "notifications" ? (
-            <NotificationsPage user={user} />
           ) : route === "portal" ? (
             <PortalPage />
           ) : route === "admissions" ? (
             <AdmissionsPage user={user} catalog={catalog} />
+          ) : route === "ppdb" ? (
+            <PublicAdmissions />
           ) : route === "files" ? (
             <FilesPage user={user} catalog={catalog} />
           ) : route === "website" ? (
@@ -727,6 +773,8 @@ function Workspace({
             <LibraryPage user={user} catalog={catalog} />
           ) : route === "security" ? (
             <SecurityPage user={user} />
+          ) : route === "cbt" || route === "cimulasi-cbt" ? (
+            <CbtPage />
           ) : (
             <SettingsPage user={user} />
           )}
@@ -766,7 +814,17 @@ function App() {
         Memuat LangkahSiswa…
       </main>
     );
-  return !user && publicRoute === "ppdb" ? (
+  return !user && (publicRoute === "cbt" || publicRoute === "cimulasi-cbt") ? (
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#f8fafc",
+        padding: "1rem",
+      }}
+    >
+      <CbtPage />
+    </div>
+  ) : !user && publicRoute === "ppdb" ? (
     <PublicAdmissions />
   ) : user ? (
     <Workspace

@@ -77,6 +77,7 @@ function SimpleForm({
             if (field.nullable && field.nullValue && raw === "")
               return [field.key, null];
             if (field.type === "number") return [field.key, Number(raw)];
+            if (field.type === "boolean") return [field.key, raw === "true"];
             if (field.type === "datetime-local")
               return [field.key, new Date(raw).toISOString()];
             return [field.key, raw];
@@ -329,6 +330,16 @@ export function BoardingPage({
     tahfidz: [],
     activities: [],
     laundry: [],
+    modules: [],
+    tahfidz_targets: [],
+    worship_habits: [],
+    worship_records: [],
+    worship_weekly: [],
+    character: [],
+    health: [],
+    diniyah_subjects: [],
+    diniyah_progress: [],
+    inspections: [],
   });
   const [tab, setTab] = useState("hunian");
   const load = async () => setData(await api("boarding/overview"));
@@ -341,6 +352,10 @@ export function BoardingPage({
     }, message);
   const students = catalog.students || [];
   const parentRows = catalog.parents || [];
+  const schools = catalog.schools || [];
+  const academicYears = catalog["academic-years"] || [];
+  const teachers = catalog.teachers || [];
+  const users = catalog.users || [];
   const studentField: Field = {
     key: "student_id",
     label: "Siswa",
@@ -349,18 +364,18 @@ export function BoardingPage({
   };
   return (
     <>
-      <PageHeading
-        eyebrow="OPERASIONAL PONDOK"
-        title="Boarding School"
-        description="Kelola hunian, izin, kunjungan, pembinaan, tahfidz, aktivitas, dan laundry."
-      />
+      <PageHeading eyebrow="OPERASIONAL PONDOK" title="Boarding School" />
       <Notices state={state} />
       <div className="tabs">
         {[
           ["hunian", "Hunian"],
           ["perizinan", "Izin & Kunjungan"],
           ["pembinaan", "Pembinaan & Tahfidz"],
+          ["mutabaah", "Mutabaah Ibadah"],
+          ["kesehatan", "Kesehatan"],
+          ["diniyah", "Diniyah"],
           ["kegiatan", "Kegiatan & Laundry"],
+          ["modul", "Aktivasi Modul"],
         ].map(([key, label]) => (
           <button
             className={tab === key ? "primary" : ""}
@@ -406,6 +421,19 @@ export function BoardingPage({
                   { key: "name", label: "Nama kamar" },
                   { key: "floor", label: "Lantai", type: "number" },
                   { key: "capacity", label: "Kapasitas", type: "number" },
+                  {
+                    key: "supervisor_user_id",
+                    label: "Musyrif/pembina",
+                    rows: users,
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  {
+                    key: "cleaning_schedule",
+                    label: "Jadwal piket",
+                    nullable: true,
+                    nullValue: true,
+                  },
                 ]}
               />
               <SimpleForm
@@ -438,6 +466,34 @@ export function BoardingPage({
                       `${row.dormitory_name} · ${row.room_name} · ${row.code}`,
                   },
                   { key: "start_date", label: "Mulai", type: "date" },
+                ]}
+              />
+              <SimpleForm
+                title="Inspeksi kamar"
+                busy={state.busy}
+                submit={mutate(
+                  "boarding/inspections",
+                  "Inspeksi kamar disimpan.",
+                )}
+                fields={[
+                  {
+                    key: "room_id",
+                    label: "Kamar",
+                    rows: data.rooms,
+                    rowLabel: (row) => `${row.dormitory_name} · ${row.name}`,
+                  },
+                  {
+                    key: "inspected_at",
+                    label: "Waktu inspeksi",
+                    type: "datetime-local",
+                  },
+                  {
+                    key: "cleanliness_score",
+                    label: "Nilai kebersihan",
+                    type: "number",
+                  },
+                  { key: "facility_condition", label: "Kondisi fasilitas" },
+                  { key: "notes", label: "Catatan", nullable: true },
                 ]}
               />
             </div>
@@ -491,6 +547,27 @@ export function BoardingPage({
               }
             />
           </section>
+          <section className="card">
+            <div className="toolbar">
+              <strong>Riwayat inspeksi kamar</strong>
+            </div>
+            <Table
+              rows={data.inspections}
+              empty="Belum ada inspeksi kamar."
+              columns={[
+                {
+                  key: "inspected_at",
+                  label: "Waktu",
+                  render: (r) => dateText(r.inspected_at),
+                },
+                { key: "dormitory_name", label: "Asrama" },
+                { key: "room_name", label: "Kamar" },
+                { key: "cleanliness_score", label: "Kebersihan" },
+                { key: "facility_condition", label: "Fasilitas" },
+                { key: "notes", label: "Catatan" },
+              ]}
+            />
+          </section>
         </>
       )}
       {tab === "perizinan" && (
@@ -504,6 +581,15 @@ export function BoardingPage({
                 fields={[
                   studentField,
                   {
+                    key: "leave_type",
+                    label: "Jenis izin",
+                    options: [
+                      { value: "OUTING", label: "Keluar sementara" },
+                      { value: "HOME", label: "Pulang" },
+                      { value: "SICK", label: "Sakit" },
+                    ],
+                  },
+                  {
                     key: "start_at",
                     label: "Waktu keluar",
                     type: "datetime-local",
@@ -514,6 +600,12 @@ export function BoardingPage({
                     type: "datetime-local",
                   },
                   { key: "reason", label: "Alasan" },
+                  {
+                    key: "pickup_name",
+                    label: "Nama penjemput",
+                    nullable: true,
+                    nullValue: true,
+                  },
                 ]}
               />
               <SimpleForm
@@ -560,6 +652,12 @@ export function BoardingPage({
                   render: (r) => dateText(r.end_at),
                 },
                 { key: "reason", label: "Alasan" },
+                { key: "leave_type", label: "Jenis" },
+                {
+                  key: "presence_status",
+                  label: "Posisi",
+                  render: (r) => <Status value={r.presence_status} />,
+                },
                 {
                   key: "status",
                   label: "Status",
@@ -606,12 +704,28 @@ export function BoardingPage({
                             </button>
                           </>
                         )}
-                        {row.status === "APPROVED" && (
+                        {row.status === "APPROVED" && !row.actual_out_at && (
                           <button
                             onClick={() =>
                               void state.run(async () => {
-                                await send(`boarding/leaves/${row.id}/status`, {
-                                  status: "RETURNED",
+                                await send("boarding/leaves/gate", {
+                                  gate_token: row.gate_token,
+                                  direction: "OUT",
+                                });
+                                await load();
+                              }, "Siswa dicatat keluar.")
+                            }
+                          >
+                            Catat keluar
+                          </button>
+                        )}
+                        {row.status === "APPROVED" && row.actual_out_at && (
+                          <button
+                            onClick={() =>
+                              void state.run(async () => {
+                                await send("boarding/leaves/gate", {
+                                  gate_token: row.gate_token,
+                                  direction: "IN",
                                 });
                                 await load();
                               }, "Kepulangan siswa dicatat.")
@@ -697,6 +811,15 @@ export function BoardingPage({
                 submit={mutate("boarding/tahfidz", "Setoran tahfidz disimpan.")}
                 fields={[
                   studentField,
+                  {
+                    key: "record_type",
+                    label: "Jenis setoran",
+                    options: [
+                      { value: "TAHFIDZ", label: "Tahfidz" },
+                      { value: "TAHSIN", label: "Tahsin" },
+                      { value: "MURAJAAH", label: "Murajaah" },
+                    ],
+                  },
                   { key: "record_date", label: "Tanggal", type: "date" },
                   { key: "surah", label: "Surah" },
                   { key: "from_verse", label: "Ayat awal", type: "number" },
@@ -708,7 +831,125 @@ export function BoardingPage({
                     nullable: true,
                     nullValue: true,
                   },
+                  {
+                    key: "fluency_score",
+                    label: "Kelancaran",
+                    type: "number",
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  {
+                    key: "tajwid_score",
+                    label: "Tajwid",
+                    type: "number",
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  {
+                    key: "makhraj_score",
+                    label: "Makhraj",
+                    type: "number",
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  {
+                    key: "adab_score",
+                    label: "Adab",
+                    type: "number",
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  {
+                    key: "memorization_status",
+                    label: "Status hafalan",
+                    options: [
+                      { value: "PROGRESS", label: "Proses" },
+                      { value: "FLUENT", label: "Lancar" },
+                      { value: "REPEAT", label: "Perlu diulang" },
+                    ],
+                  },
+                  {
+                    key: "needs_repeat",
+                    label: "Masuk daftar pengulangan",
+                    type: "boolean",
+                    options: [
+                      { value: "false", label: "Tidak" },
+                      { value: "true", label: "Ya" },
+                    ],
+                  },
                   { key: "notes", label: "Catatan", nullable: true },
+                ]}
+              />
+              <SimpleForm
+                title="Target tahfidz/tahsin"
+                busy={state.busy}
+                submit={mutate("boarding/tahfidz-targets", "Target disimpan.")}
+                fields={[
+                  studentField,
+                  {
+                    key: "academic_year_id",
+                    label: "Tahun ajaran",
+                    rows: academicYears,
+                  },
+                  {
+                    key: "target_type",
+                    label: "Jenis target",
+                    options: [
+                      { value: "TAHFIDZ", label: "Tahfidz" },
+                      { value: "TAHSIN", label: "Tahsin" },
+                    ],
+                  },
+                  { key: "target_name", label: "Target" },
+                  {
+                    key: "target_juz",
+                    label: "Jumlah/juz",
+                    type: "number",
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  { key: "start_date", label: "Mulai", type: "date" },
+                  { key: "end_date", label: "Selesai", type: "date" },
+                ]}
+              />
+              <SimpleForm
+                title="Catatan adab dan akhlak"
+                busy={state.busy}
+                submit={mutate("boarding/character", "Catatan adab disimpan.")}
+                fields={[
+                  studentField,
+                  { key: "record_date", label: "Tanggal", type: "date" },
+                  { key: "dimension", label: "Dimensi karakter" },
+                  {
+                    key: "record_type",
+                    label: "Jenis catatan",
+                    options: [
+                      { value: "POSITIVE", label: "Apresiasi positif" },
+                      { value: "DEVELOPMENT", label: "Perlu pembinaan" },
+                      { value: "VIOLATION", label: "Pelanggaran" },
+                    ],
+                  },
+                  {
+                    key: "severity",
+                    label: "Tingkat",
+                    options: [
+                      { value: "LIGHT", label: "Ringan" },
+                      { value: "MEDIUM", label: "Sedang" },
+                      { value: "HEAVY", label: "Berat" },
+                    ],
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  { key: "points", label: "Poin", type: "number" },
+                  { key: "notes", label: "Catatan" },
+                  { key: "follow_up", label: "Tindak lanjut", nullable: true },
+                  {
+                    key: "approval_status",
+                    label: "Persetujuan",
+                    options: [
+                      { value: "NOT_REQUIRED", label: "Tidak diperlukan" },
+                      { value: "PENDING", label: "Perlu persetujuan" },
+                    ],
+                  },
                 ]}
               />
             </div>
@@ -743,6 +984,7 @@ export function BoardingPage({
                 empty="Belum ada setoran."
                 columns={[
                   { key: "student_name", label: "Siswa" },
+                  { key: "record_type", label: "Jenis" },
                   {
                     key: "record_date",
                     label: "Tanggal",
@@ -755,10 +997,370 @@ export function BoardingPage({
                     render: (r) => `${r.from_verse}–${r.to_verse}`,
                   },
                   { key: "score", label: "Nilai" },
+                  {
+                    key: "memorization_status",
+                    label: "Status",
+                    render: (r) => <Status value={r.memorization_status} />,
+                  },
                 ]}
               />
             </section>
           </div>
+          <div className="split-grid">
+            <section className="card">
+              <div className="toolbar">
+                <strong>Target tahfidz/tahsin</strong>
+              </div>
+              <Table
+                rows={data.tahfidz_targets}
+                empty="Belum ada target."
+                columns={[
+                  { key: "student_name", label: "Siswa" },
+                  { key: "academic_year_name", label: "Tahun ajaran" },
+                  { key: "target_type", label: "Jenis" },
+                  { key: "target_name", label: "Target" },
+                  {
+                    key: "status",
+                    label: "Status",
+                    render: (r) => <Status value={r.status} />,
+                  },
+                ]}
+              />
+            </section>
+            <section className="card">
+              <div className="toolbar">
+                <strong>Adab dan akhlak</strong>
+              </div>
+              <Table
+                rows={data.character}
+                empty="Belum ada catatan adab."
+                columns={[
+                  {
+                    key: "record_date",
+                    label: "Tanggal",
+                    render: (r) => dateText(r.record_date),
+                  },
+                  { key: "student_name", label: "Siswa" },
+                  { key: "dimension", label: "Dimensi" },
+                  { key: "record_type", label: "Jenis" },
+                  { key: "points", label: "Poin" },
+                  {
+                    key: "approval_status",
+                    label: "Persetujuan",
+                    render: (r) => <Status value={r.approval_status} />,
+                  },
+                ]}
+                actions={
+                  write
+                    ? (row) =>
+                        row.approval_status === "PENDING" && (
+                          <>
+                            <button
+                              onClick={() =>
+                                void state.run(async () => {
+                                  await send(
+                                    `boarding/character/${row.id}/review`,
+                                    {
+                                      decision: "APPROVED",
+                                    },
+                                  );
+                                  await load();
+                                }, "Catatan disetujui.")
+                              }
+                            >
+                              Setujui
+                            </button>
+                            <button
+                              onClick={() =>
+                                void state.run(async () => {
+                                  await send(
+                                    `boarding/character/${row.id}/review`,
+                                    {
+                                      decision: "REJECTED",
+                                    },
+                                  );
+                                  await load();
+                                }, "Catatan ditolak.")
+                              }
+                            >
+                              Tolak
+                            </button>
+                          </>
+                        )
+                    : undefined
+                }
+              />
+            </section>
+          </div>
+        </>
+      )}
+      {tab === "mutabaah" && (
+        <>
+          {write && (
+            <div className="ops-form-grid">
+              <SimpleForm
+                title="Tambah checklist ibadah"
+                busy={state.busy}
+                submit={mutate(
+                  "boarding/worship-habits",
+                  "Checklist ibadah ditambahkan.",
+                )}
+                fields={[
+                  { key: "school_id", label: "Sekolah", rows: schools },
+                  { key: "name", label: "Nama kebiasaan" },
+                  { key: "category", label: "Kategori" },
+                ]}
+              />
+              <SimpleForm
+                title="Catat mutabaah"
+                busy={state.busy}
+                submit={mutate(
+                  "boarding/worship-records",
+                  "Mutabaah disimpan.",
+                )}
+                fields={[
+                  studentField,
+                  {
+                    key: "habit_id",
+                    label: "Checklist",
+                    rows: data.worship_habits,
+                  },
+                  { key: "record_date", label: "Tanggal", type: "date" },
+                  {
+                    key: "status",
+                    label: "Status",
+                    options: [
+                      { value: "DONE", label: "Dikerjakan" },
+                      { value: "MISSED", label: "Tidak dikerjakan" },
+                      { value: "EXCUSED", label: "Berhalangan" },
+                    ],
+                  },
+                  { key: "notes", label: "Catatan", nullable: true },
+                ]}
+              />
+            </div>
+          )}
+          <section className="card">
+            <div className="toolbar">
+              <strong>Catatan mutabaah harian</strong>
+            </div>
+            <Table
+              rows={data.worship_records}
+              empty="Belum ada catatan mutabaah."
+              columns={[
+                {
+                  key: "record_date",
+                  label: "Tanggal",
+                  render: (r) => dateText(r.record_date),
+                },
+                { key: "student_name", label: "Siswa" },
+                { key: "habit_name", label: "Ibadah/kebiasaan" },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (r) => <Status value={r.status} />,
+                },
+                { key: "notes", label: "Catatan" },
+              ]}
+            />
+          </section>
+          <section className="card">
+            <div className="toolbar">
+              <strong>Rekap mutabaah mingguan</strong>
+            </div>
+            <Table
+              rows={data.worship_weekly}
+              empty="Belum ada rekap mingguan."
+              columns={[
+                {
+                  key: "week_start",
+                  label: "Pekan",
+                  render: (r) => dateText(r.week_start),
+                },
+                { key: "student_name", label: "Siswa" },
+                { key: "done", label: "Dikerjakan" },
+                { key: "missed", label: "Terlewat" },
+                { key: "excused", label: "Berhalangan" },
+                { key: "total", label: "Total" },
+              ]}
+            />
+          </section>
+        </>
+      )}
+      {tab === "kesehatan" && (
+        <>
+          {write && (
+            <SimpleForm
+              title="Catat kunjungan UKS"
+              busy={state.busy}
+              submit={mutate("boarding/health", "Catatan kesehatan disimpan.")}
+              fields={[
+                studentField,
+                {
+                  key: "visited_at",
+                  label: "Waktu kunjungan",
+                  type: "datetime-local",
+                },
+                { key: "complaint", label: "Keluhan" },
+                {
+                  key: "diagnosis",
+                  label: "Diagnosis",
+                  nullable: true,
+                  nullValue: true,
+                },
+                {
+                  key: "treatment",
+                  label: "Tindakan",
+                  nullable: true,
+                  nullValue: true,
+                },
+                {
+                  key: "medicine",
+                  label: "Obat",
+                  nullable: true,
+                  nullValue: true,
+                },
+                {
+                  key: "referral",
+                  label: "Rujukan",
+                  nullable: true,
+                  nullValue: true,
+                },
+                {
+                  key: "allergy_notes",
+                  label: "Catatan alergi",
+                  nullable: true,
+                  nullValue: true,
+                },
+                {
+                  key: "activity_excuse_until",
+                  label: "Dispensasi sampai",
+                  type: "date",
+                  nullable: true,
+                  nullValue: true,
+                },
+                {
+                  key: "guardian_notified",
+                  label: "Notifikasi wali",
+                  type: "boolean",
+                  options: [
+                    { value: "false", label: "Tidak dikirim" },
+                    { value: "true", label: "Kirim notifikasi" },
+                  ],
+                },
+              ]}
+            />
+          )}
+          <section className="card">
+            <div className="toolbar">
+              <strong>Riwayat kesehatan santri</strong>
+            </div>
+            <Table
+              rows={data.health}
+              empty="Belum ada catatan kesehatan."
+              columns={[
+                {
+                  key: "visited_at",
+                  label: "Waktu",
+                  render: (r) => dateText(r.visited_at),
+                },
+                { key: "student_name", label: "Siswa" },
+                { key: "complaint", label: "Keluhan" },
+                { key: "diagnosis", label: "Diagnosis" },
+                { key: "medicine", label: "Obat" },
+                { key: "referral", label: "Rujukan" },
+              ]}
+            />
+          </section>
+        </>
+      )}
+      {tab === "diniyah" && (
+        <>
+          {write && (
+            <div className="ops-form-grid">
+              <SimpleForm
+                title="Tambah pelajaran diniyah"
+                busy={state.busy}
+                submit={mutate(
+                  "boarding/diniyah-subjects",
+                  "Pelajaran diniyah ditambahkan.",
+                )}
+                fields={[
+                  { key: "school_id", label: "Sekolah", rows: schools },
+                  { key: "name", label: "Nama pelajaran" },
+                  {
+                    key: "book_name",
+                    label: "Kitab/buku",
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  {
+                    key: "teacher_id",
+                    label: "Pengajar",
+                    rows: teachers,
+                    nullable: true,
+                    nullValue: true,
+                  },
+                ]}
+              />
+              <SimpleForm
+                title="Catat progres bab"
+                busy={state.busy}
+                submit={mutate(
+                  "boarding/diniyah-progress",
+                  "Progres diniyah disimpan.",
+                )}
+                fields={[
+                  studentField,
+                  {
+                    key: "diniyah_subject_id",
+                    label: "Pelajaran",
+                    rows: data.diniyah_subjects,
+                  },
+                  { key: "chapter", label: "Bab/materi" },
+                  {
+                    key: "status",
+                    label: "Status",
+                    options: [
+                      { value: "NOT_STARTED", label: "Belum mulai" },
+                      { value: "IN_PROGRESS", label: "Dalam proses" },
+                      { value: "COMPLETED", label: "Selesai" },
+                      { value: "REPEAT", label: "Perlu diulang" },
+                    ],
+                  },
+                  {
+                    key: "score",
+                    label: "Nilai",
+                    type: "number",
+                    nullable: true,
+                    nullValue: true,
+                  },
+                  { key: "notes", label: "Catatan", nullable: true },
+                ]}
+              />
+            </div>
+          )}
+          <section className="card">
+            <div className="toolbar">
+              <strong>Progres diniyah</strong>
+            </div>
+            <Table
+              rows={data.diniyah_progress}
+              empty="Belum ada progres diniyah."
+              columns={[
+                { key: "student_name", label: "Siswa" },
+                { key: "subject_name", label: "Pelajaran" },
+                { key: "book_name", label: "Kitab/buku" },
+                { key: "chapter", label: "Bab" },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (r) => <Status value={r.status} />,
+                },
+                { key: "score", label: "Nilai" },
+              ]}
+            />
+          </section>
         </>
       )}
       {tab === "kegiatan" && (
@@ -903,6 +1505,50 @@ export function BoardingPage({
             />
           </section>
         </>
+      )}
+      {tab === "modul" && (
+        <section className="card">
+          <div className="toolbar">
+            <strong>Modul per sekolah</strong>
+          </div>
+          <Table
+            rows={data.modules}
+            empty="Belum ada konfigurasi modul sekolah."
+            columns={[
+              { key: "school_name", label: "Sekolah" },
+              { key: "module_key", label: "Modul" },
+              {
+                key: "enabled",
+                label: "Status",
+                render: (row) => (
+                  <span className={`badge ${row.enabled ? "green" : ""}`}>
+                    {row.enabled ? "Aktif" : "Nonaktif"}
+                  </span>
+                ),
+              },
+            ]}
+            actions={
+              write
+                ? (row) => (
+                    <button
+                      onClick={() =>
+                        void state.run(async () => {
+                          await send(`boarding/modules/${row.module_key}`, {
+                            school_id: row.school_id,
+                            enabled: !row.enabled,
+                            config: row.config || {},
+                          });
+                          await load();
+                        }, `Modul ${row.module_key} diperbarui.`)
+                      }
+                    >
+                      {row.enabled ? "Nonaktifkan" : "Aktifkan"}
+                    </button>
+                  )
+                : undefined
+            }
+          />
+        </section>
       )}
     </>
   );

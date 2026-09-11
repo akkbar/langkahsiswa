@@ -942,7 +942,9 @@ export function FilesPage({
   user: Actor;
   catalog: Catalog;
 }) {
-  const write = can(user, "file.write");
+  const creatable = can(user, "file.create");
+  const updatable = can(user, "file.update");
+  const deletable = can(user, "file.delete");
   const state = useAction();
   const [files, setFiles] = useState<Row[]>([]);
   const [search, setSearch] = useState("");
@@ -1005,7 +1007,7 @@ export function FilesPage({
         <button onClick={() => setArchived(!archived)}>
           {archived ? "Berkas aktif" : "Arsip"}
         </button>
-        {write && (
+        {creatable && (
           <button
             className="primary"
             onClick={() => setShowUpload(!showUpload)}
@@ -1014,7 +1016,7 @@ export function FilesPage({
           </button>
         )}
       </div>
-      {showUpload && write && (
+      {showUpload && creatable && (
         <form
           className="card padded stack-form"
           onSubmit={(event) => {
@@ -1163,7 +1165,7 @@ export function FilesPage({
                           Unduh
                         </button>
                       )}
-                      {write && archived && (
+                      {updatable && archived && (
                         <button
                           onClick={() =>
                             void state.run(async () => {
@@ -1175,7 +1177,7 @@ export function FilesPage({
                           Pulihkan
                         </button>
                       )}
-                      {write &&
+                      {deletable &&
                         !archived &&
                         file.category !== "PAYMENT_PROOF" && (
                           <button

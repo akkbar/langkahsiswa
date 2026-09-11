@@ -1,0 +1,200 @@
+[
+  {
+    "grade_level": "SD",
+    "subject": "Matematika",
+    "question_text": "Hasil dari 25 × 14 - 150 adalah...",
+    "options": [
+      { "id": "A", "text": "180" },
+      { "id": "B", "text": "200" },
+      { "id": "C", "text": "220" },
+      { "id": "D", "text": "250" }
+    ],
+    "correct_option_id": "B",
+    "explanation": "25 × 14 = 350. Kemudian 350 - 150 = 200."
+  },
+  {
+    "grade_level": "SD",
+    "subject": "Matematika",
+    "question_text": "Sebuah kolam renang berbentuk persegi panjang dengan panjang 15 meter dan lebar 8 meter. Keliling kolam renang tersebut adalah...",
+    "options": [
+      { "id": "A", "text": "46 meter" },
+      { "id": "B", "text": "60 meter" },
+      { "id": "C", "text": "90 meter" },
+      { "id": "D", "text": "120 meter" }
+    ],
+    "correct_option_id": "A",
+    "explanation": "Keliling persegi panjang = 2 × (p + l) = 2 × (15 + 8) = 2 × 23 = 46 meter."
+  },
+  {
+    "grade_level": "SD",
+    "subject": "IPA",
+    "question_text": "Bagian tumbuhan yang berfungsi menyerap air dan hara dari dalam tanah adalah...",
+    "options": [
+      { "id": "A", "text": "Daun" },
+      { "id": "B", "text": "Batang" },
+      { "id": "C", "text": "Akar" },
+      { "id": "D", "text": "Bunga" }
+    ],
+    "correct_option_id": "C",
+    "explanation": "Akar berfungsi menyerap air dan zat hara tanah untuk disalurkan ke seluruh bagian tumbuhan."
+  },
+  {
+    "grade_level": "SD",
+    "subject": "IPA",
+    "question_text": "Alat pernapasan pada cacing tanah adalah...",
+    "options": [
+      { "id": "A", "text": "Insang" },
+      { "id": "B", "text": "Paru-paru" },
+      { "id": "C", "text": "Trakea" },
+      { "id": "D", "text": "Permukaan kulit yang basah" }
+    ],
+    "correct_option_id": "D",
+    "explanation": "Cacing bernapas menggunakan permukaan kulit yang selalu lembap dan basah."
+  },
+  {
+    "grade_level": "SD",
+    "subject": "Bahasa Indonesia",
+    "question_text": "Kata yang menyatakan perbuatan atau tindakan disebut...",
+    "options": [
+      { "id": "A", "text": "Kata benda" },
+      { "id": "B", "text": "Kata kerja" },
+      { "id": "C", "text": "Kata sifat" },
+      { "id": "D", "text": "Kata keterangan" }
+    ],
+    "correct_option_id": "B",
+    "explanation": "Kata kerja (verba) adalah kata yang menggambarkan proses, perbuatan, atau keadaan."
+  },
+  {
+    "grade_level": "SMP",
+    "subject": "Matematika",
+    "question_text": "Hasil penyederhanaan dari 4(2x - 3) - 2(x + 5) adalah...",
+    "options": [
+      { "id": "A", "text": "6x - 22" },
+      { "id": "B", "text": "6x - 2" },
+      { "id": "C", "text": "6x + 22" },
+      { "id": "D", "text": "8x - 22" }
+    ],
+    "correct_option_id": "A",
+    "explanation": "4(2x - 3) - 2(x + 5) = 8x - 12 - 2x - 10 = 6x - 22."
+  },
+  {
+    "grade_level": "SMP",
+    "subject": "Matematika",
+    "question_text": "Sebuah toko memberikan diskon 20% untuk sebuah baju seharga Rp 150.000. Berapakah harga baju setelah diskon?",
+    "options": [
+      { "id": "A", "text": "Rp 120.000" },
+      { "id": "B", "text": "Rp 125.000" },
+      { "id": "C", "text": "Rp 130.000" },
+      { "id": "D", "text": "Rp 135.000" }
+    ],
+    "correct_option_id": "A",
+    "explanation": "Diskon = 20% × 150.000 = Rp 30.000. Harga bayar = 150.000 - 30.000 = Rp 120.000."
+  },
+  {
+    "grade_level": "SMP",
+    "subject": "IPA",
+    "question_text": "Organ dalam sistem pencernaan manusia yang berfungsi menyerap air dan pembentukan feses adalah...",
+    "options": [
+      { "id": "A", "text": "Lambung" },
+      { "id": "B", "text": "Usus halus" },
+      { "id": "C", "text": "Usus besar" },
+      { "id": "D", "text": "Kerongkongan" }
+    ],
+    "correct_option_id": "C",
+    "explanation": "Usus besar berfungsi menyerap kembali sisa air dan mineral serta membentuk feses."
+  },
+  {
+    "grade_level": "SMP",
+    "subject": "IPS",
+    "question_text": "Pertemuan antara pedagang dari berbagai bangsa di Selat Malaka pada masa lampau didorong oleh posisi Indonesia yang strategis secara...",
+    "options": [
+      { "id": "A", "text": "Geologis" },
+      { "id": "B", "text": "Geografis" },
+      { "id": "C", "text": "Astronomis" },
+      { "id": "D", "text": "Topografis" }
+    ],
+    "correct_option_id": "B",
+    "explanation": "Secara geografis Indonesia terletak di antara dua benua dan dua samudra yang menjadi jalur perdagangan internasional."
+  },
+  {
+    "grade_level": "SMP",
+    "subject": "Bahasa Inggris",
+    "question_text": "Complete the dialogue: 'Where _____ you buy this awesome jacket yesterday?'",
+    "options": [
+      { "id": "A", "text": "do" },
+      { "id": "B", "text": "did" },
+      { "id": "C", "text": "does" },
+      { "id": "D", "text": "have" }
+    ],
+    "correct_option_id": "B",
+    "explanation": "Because of time signal 'yesterday' (Simple Past), auxiliary verb 'did' is used."
+  },
+  {
+    "grade_level": "SMA",
+    "subject": "Matematika",
+    "question_text": "Persamaan kuadrat x² - 5x + 6 = 0 memiliki akar-akar x1 dan x2. Nilai dari x1 + x2 adalah...",
+    "options": [
+      { "id": "A", "text": "-5" },
+      { "id": "B", "text": "5" },
+      { "id": "C", "text": "6" },
+      { "id": "D", "text": "-6" }
+    ],
+    "correct_option_id": "B",
+    "explanation": "Berdasarkan teorema Vieta, x1 + x2 = -b / a = -(-5) / 1 = 5."
+  },
+  {
+    "grade_level": "SMA",
+    "subject": "Bahasa Inggris",
+    "question_text": "Identify the passive form: 'The students are completing the CBT exam right now.'",
+    "options": [
+      { "id": "A", "text": "The CBT exam is completed by the students right now." },
+      { "id": "B", "text": "The CBT exam is being completed by the students right now." },
+      { "id": "C", "text": "The CBT exam was completed by the students right now." },
+      { "id": "D", "text": "The CBT exam has been completed by the students right now." }
+    ],
+    "correct_option_id": "B",
+    "explanation": "Present Continuous Passive: Subject + am/is/are + being + V3."
+  },
+  {
+    "grade_level": "UTBK",
+    "subject": "TPS/TPA",
+    "question_text": "Semua dokter mengenakan jas putih saat bertugas. Sebagian orang yang berada di rumah sakit mengenakan jas putih. Kesimpulan yang tepat adalah...",
+    "options": [
+      { "id": "A", "text": "Semua orang di rumah sakit adalah dokter." },
+      { "id": "B", "text": "Sebagian orang di rumah sakit adalah dokter." },
+      { "id": "C", "text": "Tidak ada dokter yang berada di rumah sakit." },
+      { "id": "D", "text": "Semua yang mengenakan jas putih bukan dokter." },
+      { "id": "E", "text": "Tidak dapat ditarik kesimpulan pasti." }
+    ],
+    "correct_option_id": "B",
+    "explanation": "Karena semua dokter mengenakan jas putih dan sebagian orang di rumah sakit mengenakan jas putih, maka sebagian orang tersebut adalah dokter."
+  },
+  {
+    "grade_level": "UTBK",
+    "subject": "TPS/TPA",
+    "question_text": "Deret huruf: A, C, F, J, O, ... Huruf berikutnya adalah...",
+    "options": [
+      { "id": "A", "text": "S" },
+      { "id": "B", "text": "T" },
+      { "id": "C", "text": "U" },
+      { "id": "D", "text": "V" },
+      { "id": "E", "text": "W" }
+    ],
+    "correct_option_id": "C",
+    "explanation": "Pola selisih urutan abjad bertambah 1: A (+2) -> C (+3) -> F (+4) -> J (+5) -> O (+6) -> U (huruf ke-21)."
+  },
+  {
+    "grade_level": "UTBK",
+    "subject": "TPS/TPA",
+    "question_text": "Jika x = 3² - 2² dan y = 5, manakah hubungan yang tepat?",
+    "options": [
+      { "id": "A", "text": "x > y" },
+      { "id": "B", "text": "x < y" },
+      { "id": "C", "text": "x = y" },
+      { "id": "D", "text": "2x = 3y" },
+      { "id": "E", "text": "Hubungan x dan y tidak dapat ditentukan" }
+    ],
+    "correct_option_id": "C",
+    "explanation": "x = 9 - 4 = 5. Karena y = 5, maka x = y."
+  }
+]

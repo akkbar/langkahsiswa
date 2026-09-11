@@ -1,6 +1,8 @@
 import {
   Body,
+  ConflictException,
   Controller,
+  Delete,
   Get,
   Inject,
   NotFoundException,
@@ -20,7 +22,13 @@ import {
   uuid,
 } from "../../../packages/validation/src";
 import { Database, type Sql } from "./database";
-import { allow, AuthGuard, AuthRequest, createTenant } from "./auth";
+import {
+  allow,
+  allowOperational,
+  AuthGuard,
+  AuthRequest,
+  createTenant,
+} from "./auth";
 import { record, validateResource } from "./academic-policy";
 
 async function ensureGradeLevelIsCustom(
@@ -51,6 +59,7 @@ export class TenantsController {
     return this.db.transaction(null, (sql) => createTenant(sql, input));
   }
   @Get(":id") async get(@Req() req: AuthRequest, @Param("id") id: string) {
+    allowOperational(req.actor);
     uuid.parse(id);
     if (id !== req.actor.tenant_id && !req.actor.roles.includes("SUPER_ADMIN"))
       throw new NotFoundException();
@@ -71,6 +80,7 @@ export class TenantsController {
     @Param("id") id: string,
     @Body() body: unknown,
   ) {
+    allowOperational(req.actor);
     allow(req.actor, "school.write");
     if (uuid.parse(id) !== req.actor.tenant_id) throw new NotFoundException();
     const data = z
@@ -98,12 +108,30 @@ export class ResourcesController {
       throw new NotFoundException("Modul tidak ditemukan");
     return resources[key];
   }
+  private allowResourceRealm(actor: AuthRequest["actor"], key: string) {
+    if (
+      [
+        "academic-years",
+        "semesters",
+        "academic-calendar",
+        "class-subjects",
+        "class-students",
+        "teacher-subjects",
+        "teacher-competencies",
+        "assessments",
+        "timetables",
+        "assessment-categories",
+      ].includes(key)
+    )
+      allowOperational(actor);
+  }
   @Get(":resource") async list(
     @Req() req: AuthRequest,
     @Param("resource") key: string,
     @Query() query: Record<string, string>,
   ) {
     const r = this.definition(key);
+    this.allowResourceRealm(req.actor, key);
     allow(req.actor, `${r.permission}.read`);
     const paging = z
       .object({
@@ -119,9 +147,9 @@ export class ResourcesController {
         values.push(uuid.parse(query[field.key]));
         filters.push(`${field.key}=$${values.length}`);
       }
-    if (paging.search && r.fields.some((f) => f.key === "name")) {
+    if (paging.search) {
       values.push(`%${paging.search}%`);
-      filters.push(`name ILIKE $${values.length}`);
+      filters.push(`to_jsonb(${r.table})::text ILIKE $${values.length}`);
     }
     const where = filters.join(" AND ");
     const total = Number(
@@ -146,6 +174,7 @@ export class ResourcesController {
     @Param("id") id: string,
   ) {
     const r = this.definition(key);
+    this.allowResourceRealm(req.actor, key);
     allow(req.actor, `${r.permission}.read`);
     return record(this.db, r.table, req.actor.tenant_id, uuid.parse(id));
   }
@@ -155,10 +184,8 @@ export class ResourcesController {
     @Body() body: unknown,
   ) {
     const r = this.definition(key);
-    allow(
-      req.actor,
-      `${r.permission}.${r.permission === "student" ? "create" : "write"}`,
-    );
+    this.allowResourceRealm(req.actor, key);
+    allow(req.actor, `${r.permission}.create`);
     const data = r.schema.strict().parse(body);
     return this.db.transaction(req.actor.tenant_id, async (sql) => {
       if (key === "grade-levels")
@@ -184,10 +211,8 @@ export class ResourcesController {
     @Body() body: unknown,
   ) {
     const r = this.definition(key);
-    allow(
-      req.actor,
-      `${r.permission}.${r.permission === "student" ? "update" : "write"}`,
-    );
+    this.allowResourceRealm(req.actor, key);
+    allow(req.actor, `${r.permission}.update`);
     uuid.parse(id);
     const patch = r.schema.partial().strict().parse(body);
     if (!Object.keys(patch).length)
@@ -211,5 +236,39 @@ export class ResourcesController {
         )
       ).rows[0];
     });
+  }
+
+  @Delete(":resource/:id")
+  async delete(
+    @Req() req: AuthRequest,
+    @Param("resource") key: string,
+    @Param("id") id: string,
+  ) {
+    const r = this.definition(key);
+    this.allowResourceRealm(req.actor, key);
+    allow(req.actor, `${r.permission}.delete`);
+    uuid.parse(id);
+    try {
+      return await this.db.transaction(req.actor.tenant_id, async (sql) => {
+        const current = await record(sql, r.table, req.actor.tenant_id, id);
+        if (key === "grade-levels")
+          await ensureGradeLevelIsCustom(
+            sql,
+            req.actor.tenant_id,
+            current.school_id,
+          );
+        await sql.query(`DELETE FROM ${r.table} WHERE tenant_id=$1 AND id=$2`, [
+          req.actor.tenant_id,
+          id,
+        ]);
+        return { id, deleted: true };
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === "23503")
+        throw new ConflictException(
+          "Data masih digunakan oleh record lain dan tidak dapat dihapus",
+        );
+      throw error;
+    }
   }
 }

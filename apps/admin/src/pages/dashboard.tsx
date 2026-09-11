@@ -86,6 +86,21 @@ type SchoolForm = {
   dapodik_id: string;
   nsm: string;
   emis_id: string;
+  education_form: string;
+  ownership_status: "PUBLIC" | "PRIVATE";
+  province_id: string;
+  city_id: string;
+  district_id: string;
+  village_id: string;
+  postal_code: string;
+  establishment_decree_number: string;
+  establishment_decree_date: string;
+  operational_license_number: string;
+  operational_license_start: string;
+  operational_license_end: string;
+  accreditation: string;
+  accreditation_number: string;
+  accreditation_valid_until: string;
 };
 
 const emptySchoolForm: SchoolForm = {
@@ -101,6 +116,21 @@ const emptySchoolForm: SchoolForm = {
   dapodik_id: "",
   nsm: "",
   emis_id: "",
+  education_form: "",
+  ownership_status: "PRIVATE",
+  province_id: "",
+  city_id: "",
+  district_id: "",
+  village_id: "",
+  postal_code: "",
+  establishment_decree_number: "",
+  establishment_decree_date: "",
+  operational_license_number: "",
+  operational_license_start: "",
+  operational_license_end: "",
+  accreditation: "",
+  accreditation_number: "",
+  accreditation_valid_until: "",
 };
 
 type SchoolView = "big-thumbnail" | "table";
@@ -132,6 +162,21 @@ function formFromProfile(profile: SiteProfile): SchoolForm {
     dapodik_id: profile.dapodik_id || "",
     nsm: profile.nsm || "",
     emis_id: profile.emis_id || "",
+    education_form: profile.education_form || "",
+    ownership_status: profile.ownership_status || "PRIVATE",
+    province_id: profile.province_id || "",
+    city_id: profile.city_id || "",
+    district_id: profile.district_id || "",
+    village_id: profile.village_id || "",
+    postal_code: profile.postal_code || "",
+    establishment_decree_number: profile.establishment_decree_number || "",
+    establishment_decree_date: profile.establishment_decree_date || "",
+    operational_license_number: profile.operational_license_number || "",
+    operational_license_start: profile.operational_license_start || "",
+    operational_license_end: profile.operational_license_end || "",
+    accreditation: profile.accreditation || "",
+    accreditation_number: profile.accreditation_number || "",
+    accreditation_valid_until: profile.accreditation_valid_until || "",
   };
 }
 
@@ -251,6 +296,44 @@ function SchoolEditor({
           onChange={(event) => setField("phone", event.target.value)}
         />
       </label>
+      <fieldset className="school-photo-field">
+        <legend>Wilayah sekolah</legend>
+        <label>
+          Provinsi
+          <input
+            value={form.province_id}
+            onChange={(event) => setField("province_id", event.target.value)}
+          />
+        </label>
+        <label>
+          Kabupaten/Kota
+          <input
+            value={form.city_id}
+            onChange={(event) => setField("city_id", event.target.value)}
+          />
+        </label>
+        <label>
+          Kecamatan
+          <input
+            value={form.district_id}
+            onChange={(event) => setField("district_id", event.target.value)}
+          />
+        </label>
+        <label>
+          Kelurahan/Desa
+          <input
+            value={form.village_id}
+            onChange={(event) => setField("village_id", event.target.value)}
+          />
+        </label>
+        <label>
+          Kode pos
+          <input
+            value={form.postal_code}
+            onChange={(event) => setField("postal_code", event.target.value)}
+          />
+        </label>
+      </fieldset>
       <label>
         Kepala sekolah
         <select
@@ -317,6 +400,29 @@ function SchoolEditor({
           onChange={(event) => setField("npsn", event.target.value)}
         />
       </label>
+      <label>
+        Bentuk pendidikan
+        <input
+          value={form.education_form}
+          onChange={(event) => setField("education_form", event.target.value)}
+          placeholder="Contoh: Sekolah Menengah Pertama"
+        />
+      </label>
+      <label>
+        Status kepemilikan
+        <select
+          value={form.ownership_status}
+          onChange={(event) =>
+            setField(
+              "ownership_status",
+              event.target.value as SchoolForm["ownership_status"],
+            )
+          }
+        >
+          <option value="PRIVATE">Swasta</option>
+          <option value="PUBLIC">Negeri</option>
+        </select>
+      </label>
       {kemendikbud ? (
         <>
           <label>
@@ -356,6 +462,90 @@ function SchoolEditor({
           </label>
         </>
       )}
+      <fieldset className="school-photo-field">
+        <legend>SK pendirian sekolah</legend>
+        <label>
+          Nomor SK
+          <input
+            value={form.establishment_decree_number}
+            onChange={(event) =>
+              setField("establishment_decree_number", event.target.value)
+            }
+          />
+        </label>
+        <label>
+          Tanggal SK
+          <input
+            type="date"
+            value={form.establishment_decree_date}
+            onChange={(event) =>
+              setField("establishment_decree_date", event.target.value)
+            }
+          />
+        </label>
+      </fieldset>
+      <fieldset className="school-photo-field">
+        <legend>Izin operasional sekolah</legend>
+        <label>
+          Nomor izin
+          <input
+            value={form.operational_license_number}
+            onChange={(event) =>
+              setField("operational_license_number", event.target.value)
+            }
+          />
+        </label>
+        <label>
+          Berlaku mulai
+          <input
+            type="date"
+            value={form.operational_license_start}
+            onChange={(event) =>
+              setField("operational_license_start", event.target.value)
+            }
+          />
+        </label>
+        <label>
+          Berlaku sampai
+          <input
+            type="date"
+            value={form.operational_license_end}
+            onChange={(event) =>
+              setField("operational_license_end", event.target.value)
+            }
+          />
+        </label>
+      </fieldset>
+      <fieldset className="school-photo-field">
+        <legend>Akreditasi</legend>
+        <label>
+          Peringkat
+          <input
+            value={form.accreditation}
+            onChange={(event) => setField("accreditation", event.target.value)}
+            placeholder="Contoh: A"
+          />
+        </label>
+        <label>
+          Nomor akreditasi
+          <input
+            value={form.accreditation_number}
+            onChange={(event) =>
+              setField("accreditation_number", event.target.value)
+            }
+          />
+        </label>
+        <label>
+          Berlaku sampai
+          <input
+            type="date"
+            value={form.accreditation_valid_until}
+            onChange={(event) =>
+              setField("accreditation_valid_until", event.target.value)
+            }
+          />
+        </label>
+      </fieldset>
       <fieldset className="school-photo-field">
         <legend>Foto sekolah</legend>
         {!!profile?.photos.length && (
@@ -427,7 +617,36 @@ export function SitesPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
+  const [visibleLimit, setVisibleLimit] = useState(30);
   const editable = can(user, "site.write");
+  const query = search.trim().toLocaleLowerCase("id-ID");
+  const filteredSites = sites.filter((site) =>
+    [
+      site.school_name,
+      site.name,
+      site.slug,
+      site.address,
+      site.school_level,
+      site.education_authority,
+      site.npsn,
+    ]
+      .join(" ")
+      .toLocaleLowerCase("id-ID")
+      .includes(query),
+  );
+  const visibleSites = filteredSites.slice(0, visibleLimit);
+
+  useEffect(() => setVisibleLimit(30), [search, view]);
+
+  const loadMoreSites = (event: React.UIEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    if (
+      element.scrollTop + element.clientHeight >= element.scrollHeight - 80 &&
+      visibleLimit < filteredSites.length
+    )
+      setVisibleLimit((current) => current + 30);
+  };
 
   const setView = (next: SchoolView) => {
     setViewState(next);
@@ -487,6 +706,23 @@ export function SitesPage({
             nsm: form.nsm,
             emis_id: form.emis_id,
           };
+    const legalProfile = {
+      education_form: form.education_form || null,
+      ownership_status: form.ownership_status,
+      province_id: form.province_id || null,
+      city_id: form.city_id || null,
+      district_id: form.district_id || null,
+      village_id: form.village_id || null,
+      postal_code: form.postal_code || null,
+      establishment_decree_number: form.establishment_decree_number || null,
+      establishment_decree_date: form.establishment_decree_date || null,
+      operational_license_number: form.operational_license_number || null,
+      operational_license_start: form.operational_license_start || null,
+      operational_license_end: form.operational_license_end || null,
+      accreditation: form.accreditation || null,
+      accreditation_number: form.accreditation_number || null,
+      accreditation_valid_until: form.accreditation_valid_until || null,
+    };
     try {
       let siteId = profile?.id;
       if (mode === "new") {
@@ -500,6 +736,7 @@ export function SitesPage({
           school_level: form.school_level,
           npsn: form.npsn,
           ...registry,
+          ...legalProfile,
         });
         siteId = created.id;
       } else if (siteId) {
@@ -515,6 +752,7 @@ export function SitesPage({
             school_level: form.school_level,
             npsn: form.npsn,
             ...registry,
+            ...legalProfile,
           },
           "PATCH",
         );
@@ -563,14 +801,19 @@ export function SitesPage({
     <>
       <div className="page-title">
         <div>
-          <span className="eyebrow">DATA SEKOLAH</span>
+          <span className="eyebrow">YAYASAN</span>
           <h1>List Sekolah</h1>
-          <p className="muted">
-            Kelola seluruh sekolah di bawah {user.organization_name} dengan satu
-            akun.
-          </p>
         </div>
         <div className="page-actions">
+          <div className="filter-toolbar">
+            <input
+              aria-label="Cari sekolah"
+              placeholder="Cari sekolah…"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
           <div className="view-toggle" role="group" aria-label="Mode tampilan">
             <button
               className={view === "big-thumbnail" ? "active" : ""}
@@ -615,7 +858,7 @@ export function SitesPage({
           className="site-list"
           aria-label="Sekolah dalam tampilan big thumbnail"
         >
-          {sites.map((site) => (
+          {filteredSites.map((site) => (
             <article
               className={
                 site.current ? "card site-card current" : "card site-card"
@@ -665,6 +908,16 @@ export function SitesPage({
                     <dt>Jenjang</dt>
                     <dd>{schoolLevelLabel(site)}</dd>
                   </div>
+                  <div>
+                    <dt>Kepemilikan</dt>
+                    <dd>
+                      {site.ownership_status === "PUBLIC" ? "Negeri" : "Swasta"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Akreditasi</dt>
+                    <dd>{site.accreditation || "—"}</dd>
+                  </div>
                 </dl>
               </div>
               <div className="site-card-footer">
@@ -688,14 +941,17 @@ export function SitesPage({
           className="card school-table"
           aria-label="Sekolah dalam tampilan table"
         >
-          <div className="table-wrap">
+          <div className="table-wrap" onScroll={loadMoreSites}>
             <table>
               <thead>
                 <tr>
                   <th>Sekolah</th>
                   <th>Jenjang</th>
                   <th>Naungan</th>
+                  <th>Kepemilikan</th>
                   <th>Identitas</th>
+                  <th>Izin operasional</th>
+                  <th>Akreditasi</th>
                   <th>Kepala sekolah</th>
                   <th>Telepon</th>
                   <th>Status</th>
@@ -703,7 +959,7 @@ export function SitesPage({
                 </tr>
               </thead>
               <tbody>
-                {sites.map((site) => (
+                {visibleSites.map((site) => (
                   <tr key={site.id}>
                     <td>
                       <strong>{site.school_name || site.name}</strong>
@@ -718,6 +974,9 @@ export function SitesPage({
                         : "Kemendikbud"}
                     </td>
                     <td>
+                      {site.ownership_status === "PUBLIC" ? "Negeri" : "Swasta"}
+                    </td>
+                    <td>
                       <span>NPSN: {site.npsn || "—"}</span>
                       <span>
                         {site.education_authority === "KEMENAG" ? "NSM" : "NSS"}
@@ -725,6 +984,18 @@ export function SitesPage({
                         {site.education_authority === "KEMENAG"
                           ? site.nsm || "—"
                           : site.nss || "—"}
+                      </span>
+                    </td>
+                    <td>
+                      <span>{site.operational_license_number || "—"}</span>
+                      <span className="muted">
+                        s.d. {site.operational_license_end || "tidak dibatasi"}
+                      </span>
+                    </td>
+                    <td>
+                      <span>{site.accreditation || "—"}</span>
+                      <span className="muted">
+                        {site.accreditation_number || "Tanpa nomor"}
                       </span>
                     </td>
                     <td>{site.principal_name || "—"}</td>
@@ -757,6 +1028,11 @@ export function SitesPage({
                 ))}
               </tbody>
             </table>
+            {visibleSites.length < filteredSites.length && (
+              <div className="table-lazy-status" role="status">
+                Scroll untuk memuat sekolah berikutnya…
+              </div>
+            )}
           </div>
         </section>
       )}

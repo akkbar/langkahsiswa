@@ -155,7 +155,12 @@ export async function validateResource(
   id?: string,
 ) {
   const tenant = actor.tenant_id;
-  if (data.start_date && data.end_date && data.start_date >= data.end_date)
+  if (
+    key !== "academic-calendar" &&
+    data.start_date &&
+    data.end_date &&
+    data.start_date >= data.end_date
+  )
     throw new BadRequestException(
       "Tanggal selesai harus setelah tanggal mulai",
     );
@@ -224,6 +229,22 @@ export async function validateResource(
         "Tanggal semester harus mencakup absensi yang tersimpan",
       );
   }
+  if (key === "academic-calendar") {
+    const year = await record(
+      sql,
+      "academic_years",
+      tenant,
+      data.academic_year_id,
+    );
+    if (data.start_date > data.end_date)
+      throw new BadRequestException(
+        "Tanggal akhir agenda harus sama atau setelah tanggal mulai",
+      );
+    if (data.start_date < year.start_date || data.end_date > year.end_date)
+      throw new BadRequestException(
+        "Agenda harus berada di dalam periode tahun ajaran",
+      );
+  }
   if (key === "classes") {
     const year = await record(
       sql,
@@ -275,6 +296,25 @@ export async function validateResource(
     if (year.school_id !== subject.school_id)
       throw new BadRequestException("Pelajaran bukan milik sekolah kelas ini");
     await editableGrades(sql, tenant, data.class_id, data.semester_id);
+  }
+  if (key === "teacher-competencies") {
+    await record(sql, "teachers", tenant, data.teacher_id);
+    const subject = await record(sql, "subjects", tenant, data.subject_id);
+    const gradeLevel = await record(
+      sql,
+      "grade_levels",
+      tenant,
+      data.grade_level_id,
+    );
+    if (subject.school_id !== gradeLevel.school_id)
+      throw new BadRequestException(
+        "Mata pelajaran dan tingkat kelas harus berasal dari sekolah yang sama",
+      );
+    await sql.query(
+      `INSERT INTO teacher_subjects(tenant_id,teacher_id,subject_id)
+       VALUES($1,$2,$3) ON CONFLICT(tenant_id,teacher_id,subject_id) DO NOTHING`,
+      [tenant, data.teacher_id, data.subject_id],
+    );
   }
   if (key === "class-students") {
     const cls = await record(sql, "classes", tenant, data.class_id);

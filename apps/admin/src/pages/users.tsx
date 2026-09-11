@@ -47,100 +47,102 @@ export function UsersPage({
       </div>
       <ErrorBox error={error} />
       {message && <p className="notice success">{message}</p>}
-      <form
-        className="card padded"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError("");
-          setMessage("");
-          try {
-            await send("users", form);
-            await refresh();
-            setMessage("Akun dibuat.");
-            setForm({
-              name: "",
-              email: "",
-              password: "",
-              roles: ["STAFF"],
-            });
-          } catch (e) {
-            setError((e as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <div className="form-grid">
-          <label>
-            Nama
-            <input
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </label>
-          <label>
-            Email
-            <input
-              required
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-          </label>
-          <label>
-            Kata sandi awal
-            <input
-              required
-              type="password"
-              minLength={12}
-              autoComplete="new-password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </label>
-          <fieldset>
-            <legend>Peran dan permission awal</legend>
-            {[
-              ["STAFF", "Staff"],
-              ["TEACHER", "Guru"],
-              ["PRINCIPAL", "Kepala Sekolah"],
-              ["FINANCE", "Keuangan"],
-              ...(user.roles.some((role) =>
-                ["SUPER_ADMIN", "FOUNDATION_HEAD"].includes(role),
-              )
-                ? [
-                    ["FOUNDATION_STAFF", "Staff Yayasan"],
-                    ["FOUNDATION_HEAD", "Kepala Yayasan"],
-                  ]
-                : []),
-              ["PARENT", "Orang Tua / Wali"],
-              ["STUDENT", "Siswa"],
-              ["CANTEEN_ADMIN", "Administrator Kantin"],
-            ].map(([role, title]) => (
-              <label className="check" key={role}>
-                <input
-                  type="checkbox"
-                  checked={form.roles.includes(role)}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      roles: e.target.checked
-                        ? [...form.roles, role]
-                        : form.roles.filter((r) => r !== role),
-                    })
-                  }
-                />
-                {title}
-              </label>
-            ))}
-          </fieldset>
-        </div>
-        <button className="primary" disabled={busy || !form.roles.length}>
-          {busy ? "Menyimpan…" : "Buat akun"}
-        </button>
-      </form>
+      {can(user, "user.create") && (
+        <form
+          className="card padded"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setError("");
+            setMessage("");
+            try {
+              await send("users", form);
+              await refresh();
+              setMessage("Akun dibuat.");
+              setForm({
+                name: "",
+                email: "",
+                password: "",
+                roles: ["STAFF"],
+              });
+            } catch (e) {
+              setError((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <div className="form-grid">
+            <label>
+              Nama
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+            <label>
+              Email
+              <input
+                required
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </label>
+            <label>
+              Kata sandi awal
+              <input
+                required
+                type="password"
+                minLength={12}
+                autoComplete="new-password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
+            </label>
+            <fieldset>
+              <legend>Peran dan permission awal</legend>
+              {[
+                ["STAFF", "Staff"],
+                ["TEACHER", "Guru"],
+                ["PRINCIPAL", "Kepala Sekolah"],
+                ["FINANCE", "Keuangan"],
+                ...(user.roles.some((role) =>
+                  ["SUPER_ADMIN", "FOUNDATION_HEAD"].includes(role),
+                )
+                  ? [
+                      ["FOUNDATION_STAFF", "Staff Yayasan"],
+                      ["FOUNDATION_HEAD", "Kepala Yayasan"],
+                    ]
+                  : []),
+                ["PARENT", "Orang Tua / Wali"],
+                ["STUDENT", "Siswa"],
+                ["CANTEEN_ADMIN", "Administrator Kantin"],
+              ].map(([role, title]) => (
+                <label className="check" key={role}>
+                  <input
+                    type="checkbox"
+                    checked={form.roles.includes(role)}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        roles: e.target.checked
+                          ? [...form.roles, role]
+                          : form.roles.filter((r) => r !== role),
+                      })
+                    }
+                  />
+                  {title}
+                </label>
+              ))}
+            </fieldset>
+          </div>
+          <button className="primary" disabled={busy || !form.roles.length}>
+            {busy ? "Menyimpan…" : "Buat akun"}
+          </button>
+        </form>
+      )}
       <section className="card">
         <div className="table-wrap">
           <table>

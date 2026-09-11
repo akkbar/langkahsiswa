@@ -16,7 +16,7 @@ import {
 import type { Observable } from "rxjs";
 import { mergeMap } from "rxjs/operators";
 import { z } from "zod";
-import { allow, AuthGuard, type AuthRequest } from "./auth";
+import { allow, allowOperational, AuthGuard, type AuthRequest } from "./auth";
 import { Database } from "./database";
 
 @Injectable()
@@ -68,6 +68,7 @@ export class SecurityController {
     @Req() req: AuthRequest,
     @Query() query: Record<string, unknown>,
   ) {
+    allowOperational(req.actor);
     allow(req.actor, "audit.read");
     const page = z.coerce
       .number()
@@ -107,6 +108,7 @@ export class SecurityController {
   }
 
   @Get("login-history") async logins(@Req() req: AuthRequest) {
+    allowOperational(req.actor);
     allow(req.actor, "audit.read");
     const data = (
       await this.db.query(
@@ -122,6 +124,8 @@ export class SecurityController {
     @Req() req: AuthRequest,
     @Query("user_id") userId?: string,
   ) {
+    allowOperational(req.actor);
+    allow(req.actor, "audit.read");
     const target = userId ? z.string().uuid().parse(userId) : req.actor.id;
     if (target !== req.actor.id) allow(req.actor, "session.write");
     const data = (
@@ -139,6 +143,8 @@ export class SecurityController {
     @Req() req: AuthRequest,
     @Param("id") id: string,
   ) {
+    allowOperational(req.actor);
+    allow(req.actor, "audit.read");
     z.string().uuid().parse(id);
     const session = (
       await this.db.query(

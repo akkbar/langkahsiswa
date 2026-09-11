@@ -10,7 +10,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { attendanceSchema, date, uuid } from "../../../packages/validation/src";
-import { AuthGuard, AuthRequest, allow } from "./auth";
+import { AuthGuard, AuthRequest, allow, allowOperational } from "./auth";
 import { Database } from "./database";
 import { notifyStudent } from "./notifications";
 import {
@@ -29,6 +29,7 @@ export class AttendanceController {
     @Query("class_id") classId: string,
     @Query("date") day: string,
   ) {
+    allowOperational(req.actor);
     allow(req.actor, "attendance.read");
     uuid.parse(classId);
     date.parse(day);
@@ -49,6 +50,7 @@ export class AttendanceController {
     return { session: session || null, records };
   }
   @Put() async save(@Req() req: AuthRequest, @Body() body: unknown) {
+    allowOperational(req.actor);
     allow(req.actor, "attendance.write");
     const input = attendanceSchema.parse(body);
     uniqueStudents(input.records);
