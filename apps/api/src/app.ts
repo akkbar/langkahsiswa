@@ -22,6 +22,7 @@ import {
 } from "./auth";
 import { ResourcesController, TenantsController } from "./resources";
 import { AttendanceController } from "./attendance";
+import { AssessmentPlansController } from "./assessment-plans";
 import { GradebookController } from "./gradebook";
 import { ReportsController } from "./reports";
 import { ApiErrorFilter } from "./http";
@@ -124,6 +125,7 @@ class HealthController {
     TenantsController,
     AttendanceController,
     GradebookController,
+    AssessmentPlansController,
     ReportsController,
     EventsController,
     NotificationsController,

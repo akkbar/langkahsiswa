@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useContext, useEffect, useState } from "react";
 import type { Actor } from "../../../../packages/shared-types/src";
 import { api, send } from "../api";
@@ -410,7 +411,10 @@ function Table({
           );
       }}
     >
-      <table>
+      <SortableTable
+        rowLimit={visibleCount}
+        onSortChange={() => setVisibleCount(25)}
+      >
         <thead>
           <tr>
             {columns.map((column) => (
@@ -420,10 +424,10 @@ function Table({
           </tr>
         </thead>
         <tbody>
-          {renderedRows.map((row) => (
+          {visibleRows.map((row) => (
             <tr key={row.id}>
               {columns.map((column) => (
-                <td key={column.key}>
+                <td key={column.key} data-sort-value={row[column.key]}>
                   {column.render
                     ? column.render(row)
                     : String(row[column.key] ?? "—")}
@@ -437,7 +441,7 @@ function Table({
             </tr>
           ))}
         </tbody>
-      </table>
+      </SortableTable>
       {renderedRows.length < visibleRows.length && (
         <div className="table-lazy-status" role="status">
           Scroll untuk memuat data berikutnya...

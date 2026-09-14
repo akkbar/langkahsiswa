@@ -1,0 +1,120 @@
+﻿.score-matrix-page > .page-title {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.score-matrix-page .page-actions {
+  flex-wrap: wrap;
+}
+.score-matrix-page .page-actions > select {
+  width: auto;
+  max-width: 340px;
+}
+.score-matrix-page .page-actions > input {
+  width: 180px;
+}
+.score-matrix-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.score-matrix th,
+.score-matrix td {
+  min-width: 150px;
+}
+.score-matrix td {
+  vertical-align: top;
+}
+.score-matrix th:first-child,
+.score-matrix td:first-child {
+  position: sticky;
+  left: 0;
+  min-width: 200px;
+  background: var(--surface);
+  z-index: 1;
+}
+.score-matrix thead th:first-child {
+  z-index: 4;
+}
+.score-matrix th small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  margin-top: 5px;
+}
+.score-matrix td input {
+  width: 95px;
+}
+.score-matrix td small {
+  display: block;
+  max-width: 150px;
+  white-space: normal;
+  font-size: 11px;
+  margin-top: 5px;
+}
+.score-matrix .score-cell-error {
+  color: #ba2436;
+}
+.score-matrix input[aria-invalid="true"] {
+  border-color: #ba2436;
+}
+.score-history {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.score-history li {
+  border-left: 3px solid var(--blue);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: var(--surface-soft);
+  border-radius: 4px;
+}
+.score-history p {
+  margin: 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+@media (max-width: 600px) {
+  .score-matrix-page .page-actions > select {
+    width: 100%;
+    max-width: 100%;
+  }
+  .score-matrix th:first-child,
+  .score-matrix td:first-child {
+    min-width: 150px;
+    max-width: 150px;
+    white-space: normal;
+  }
+}
+.score-matrix td:has(input) {
+  position: relative;
+}
+.score-matrix input.score-cell-saved {
+  border-color: #16a34a;
+}
+.score-matrix td small.score-cell-saved-note {
+  position: absolute;
+  bottom: 3px;
+  margin: 0;
+  color: #15803d;
+  pointer-events: none;
+  animation: score-saved-note 2s forwards;
+}
+@keyframes score-saved-note {
+  0%,
+  75% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .score-matrix td small.score-cell-saved-note {
+    animation-timing-function: steps(1, end);
+  }
+}

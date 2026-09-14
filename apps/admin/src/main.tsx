@@ -1,3 +1,4 @@
+import { AssessmentPlansPage } from "./pages/assessment-plans";
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { resources } from "../../../packages/validation/src";
@@ -793,6 +794,8 @@ function Workspace({
             <SubjectsPage user={user} catalog={catalog} refresh={refresh} />
           ) : route === "timetables" ? (
             <TimetablesPage user={user} catalog={catalog} />
+          ) : route === "assessments" ? (
+            <AssessmentPlansPage user={user} refresh={refresh} />
           ) : resources[route] ? (
             <ResourcePage
               key={route}

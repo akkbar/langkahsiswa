@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useState } from "react";
+import { SortableTable } from "../sortable-table";
+import React, { useEffect, useState } from "react";
 import type { Actor } from "../../../../packages/shared-types/src";
 import { api, all, send, downloadFile } from "../api";
 import { Empty, ErrorBox } from "../components";
@@ -442,7 +443,7 @@ export function BillingPage({ user }: { user: Actor }) {
           <Empty text="Belum ada tagihan untuk siswa ini." />
         ) : (
           <div className="table-wrap">
-            <table>
+            <SortableTable>
               <thead>
                 <tr>
                   <th>Siswa / Tagihan</th>
@@ -476,7 +477,7 @@ export function BillingPage({ user }: { user: Actor }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         )}
       </section>
@@ -493,7 +494,7 @@ export function BillingPage({ user }: { user: Actor }) {
             <button onClick={() => setSelected(null)}>Tutup rincian</button>
           </div>
           <div className="table-wrap">
-            <table>
+            <SortableTable>
               <thead>
                 <tr>
                   <th>Rincian</th>
@@ -510,7 +511,7 @@ export function BillingPage({ user }: { user: Actor }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
           <div className="cart-total">
             <span>Sisa tagihan</span>
@@ -596,7 +597,7 @@ export function BillingPage({ user }: { user: Actor }) {
             <Empty text="Tidak ada pembayaran yang menunggu verifikasi." />
           ) : (
             <div className="table-wrap">
-              <table>
+              <SortableTable>
                 <thead>
                   <tr>
                     <th>Siswa / Tagihan</th>
@@ -644,7 +645,7 @@ export function BillingPage({ user }: { user: Actor }) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </SortableTable>
             </div>
           )}
         </section>
@@ -1017,7 +1018,7 @@ export function WalletPage({ user }: { user: Actor }) {
               <Empty text="Belum ada transaksi dompet." />
             ) : (
               <div className="table-wrap">
-                <table>
+                <SortableTable>
                   <thead>
                     <tr>
                       <th>Transaksi</th>
@@ -1049,7 +1050,7 @@ export function WalletPage({ user }: { user: Actor }) {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </SortableTable>
               </div>
             )}
           </section>
@@ -1064,7 +1065,7 @@ export function WalletPage({ user }: { user: Actor }) {
           <Empty text="Belum ada permintaan isi saldo." />
         ) : (
           <div className="table-wrap">
-            <table>
+            <SortableTable>
               <thead>
                 <tr>
                   <th>Siswa</th>
@@ -1119,7 +1120,7 @@ export function WalletPage({ user }: { user: Actor }) {
                     </tr>
                   ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         )}
       </section>

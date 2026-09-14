@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useEffect, useState } from "react";
 import type {
   Actor,
@@ -942,7 +943,10 @@ export function SitesPage({
           aria-label="Sekolah dalam tampilan table"
         >
           <div className="table-wrap" onScroll={loadMoreSites}>
-            <table>
+            <SortableTable
+              rowLimit={visibleLimit}
+              onSortChange={() => setVisibleLimit(30)}
+            >
               <thead>
                 <tr>
                   <th>Sekolah</th>
@@ -959,7 +963,7 @@ export function SitesPage({
                 </tr>
               </thead>
               <tbody>
-                {visibleSites.map((site) => (
+                {filteredSites.map((site) => (
                   <tr key={site.id}>
                     <td>
                       <strong>{site.school_name || site.name}</strong>
@@ -1027,7 +1031,7 @@ export function SitesPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
             {visibleSites.length < filteredSites.length && (
               <div className="table-lazy-status" role="status">
                 Scroll untuk memuat sekolah berikutnya…

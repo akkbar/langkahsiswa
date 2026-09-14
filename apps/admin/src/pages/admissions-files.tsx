@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useEffect, useState } from "react";
 import type { Actor } from "../../../../packages/shared-types/src";
 import { api, downloadFile, send } from "../api";
@@ -555,7 +556,7 @@ export function AdmissionsPage({
         </form>
       )}
       <div className="table-wrap card">
-        <table>
+        <SortableTable>
           <thead>
             <tr>
               <th>Periode</th>
@@ -629,7 +630,7 @@ export function AdmissionsPage({
               </tr>
             ))}
           </tbody>
-        </table>
+        </SortableTable>
       </div>
       <div className="split-layout">
         <section className="card padded">
@@ -1117,7 +1118,7 @@ export function FilesPage({
         <Empty text="Belum ada berkas pada filter ini." />
       ) : (
         <div className="table-wrap">
-          <table>
+          <SortableTable>
             <thead>
               <tr>
                 <th>Berkas</th>
@@ -1199,7 +1200,7 @@ export function FilesPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </SortableTable>
         </div>
       )}
     </>

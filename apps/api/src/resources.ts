@@ -25,11 +25,17 @@ import { Database, type Sql } from "./database";
 import {
   allow,
   allowOperational,
+  isAdmin,
   AuthGuard,
   AuthRequest,
   createTenant,
 } from "./auth";
-import { record, validateResource } from "./academic-policy";
+import {
+  record,
+  validateResource,
+  teachSubject,
+  editableGrades,
+} from "./academic-policy";
 
 async function ensureGradeLevelIsCustom(
   sql: Sql,
@@ -174,6 +180,19 @@ export class ResourcesController {
       values.push(`%${paging.search}%`);
       filters.push(`to_jsonb(${r.table})::text ILIKE $${values.length}`);
     }
+    if (
+      ["assessments", "assessment-categories"].includes(key) &&
+      !isAdmin(req.actor)
+    ) {
+      values.push(req.actor.id);
+      const subject =
+        key === "assessments"
+          ? `SELECT cat.class_subject_id FROM assessment_categories cat WHERE cat.tenant_id=${r.table}.tenant_id AND cat.id=${r.table}.category_id`
+          : `${r.table}.class_subject_id`;
+      filters.push(
+        `EXISTS (SELECT 1 FROM class_subjects cs JOIN teachers t ON t.tenant_id=cs.tenant_id AND t.id=cs.teacher_id WHERE cs.tenant_id=${r.table}.tenant_id AND cs.id=(${subject}) AND t.user_id=$${values.length})`,
+      );
+    }
     const where = filters.join(" AND ");
     const total = Number(
       (
@@ -199,7 +218,25 @@ export class ResourcesController {
     const r = this.definition(key);
     this.allowResourceRealm(req.actor, key);
     allow(req.actor, `${r.permission}.read`);
-    return record(this.db, r.table, req.actor.tenant_id, uuid.parse(id));
+    const row = await record(
+      this.db,
+      r.table,
+      req.actor.tenant_id,
+      uuid.parse(id),
+    );
+    if (["assessments", "assessment-categories"].includes(key)) {
+      const category =
+        key === "assessments"
+          ? await record(
+              this.db,
+              "assessment_categories",
+              req.actor.tenant_id,
+              row.category_id,
+            )
+          : row;
+      await teachSubject(this.db, req.actor, category.class_subject_id);
+    }
+    return row;
   }
   @Post(":resource") async create(
     @Req() req: AuthRequest,
@@ -278,6 +315,28 @@ export class ResourcesController {
     try {
       return await this.db.transaction(req.actor.tenant_id, async (sql) => {
         const current = await record(sql, r.table, req.actor.tenant_id, id);
+        if (["assessments", "assessment-categories"].includes(key)) {
+          const category =
+            key === "assessments"
+              ? await record(
+                  sql,
+                  "assessment_categories",
+                  req.actor.tenant_id,
+                  current.category_id,
+                )
+              : current;
+          const subject = await teachSubject(
+            sql,
+            req.actor,
+            category.class_subject_id,
+          );
+          await editableGrades(
+            sql,
+            req.actor.tenant_id,
+            subject.class_id,
+            subject.semester_id,
+          );
+        }
         if (key === "grade-levels")
           await ensureGradeLevelIsCustom(
             sql,

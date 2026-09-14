@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useState, useEffect } from "react";
 import type {
   Actor,
@@ -165,7 +166,7 @@ export function ReportsPage({
           <Empty text="Belum ada raport yang tersedia." />
         ) : (
           <div className="table-wrap">
-            <table>
+            <SortableTable>
               <thead>
                 <tr>
                   <th>Siswa</th>
@@ -204,7 +205,7 @@ export function ReportsPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         )}
       </section>
@@ -228,7 +229,7 @@ export function ReportsPage({
             </button>
           </div>
           <div className="table-wrap">
-            <table>
+            <SortableTable>
               <thead>
                 <tr>
                   <th>Mata pelajaran</th>
@@ -253,7 +254,7 @@ export function ReportsPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
           <p className="muted">
             Kehadiran:{" "}

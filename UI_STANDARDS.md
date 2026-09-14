@@ -44,6 +44,22 @@ Referensi implementasi saat ini adalah `SitesPage` di
   sebagai notice, helper text pada field, empty state, atau bagian konten yang
   relevan—bukan sebagai subjudul deskriptif pada header.
 
+## Tombol pilihan mode tampilan
+
+- Gunakan grup tombol ikon seperti **Yayasan > List Sekolah**, dengan class
+  `view-toggle`, `role="group"`, dan `aria-label="Mode tampilan"`.
+- Setiap mode berupa tombol `type="button"` dengan ikon SVG, `title` sebagai
+  tooltip, serta `aria-label` yang menjelaskan mode tersebut. SVG memakai
+  `aria-hidden="true"`.
+- Mode terpilih menggunakan class `active` dan `aria-pressed="true"`; tombol
+  lainnya menggunakan `aria-pressed="false"`.
+- Gunakan ukuran, warna, dan jarak dari style bersama `.view-toggle`. Letakkan
+  grup sejajar dengan pencarian/filter dan tombol aksi utama pada toolbar.
+- Pemilih mode memakai tombol ikon, bukan dropdown. Pilihan tetap disimpan di
+  browser dan dipulihkan ketika halaman dibuka kembali.
+- Pada **Jadwal Pelajaran**, urutan mode adalah Tabel jadwal, Per hari,
+  Kalender, dan Beban guru.
+
 ## Standar tabel dan filter toolbar
 
 Standar berikut wajib dipakai pada **List Sekolah**, **Semua Akun**, dan seluruh
@@ -61,6 +77,27 @@ halaman lain yang mempunyai mode tabel:
    pertama.
 6. Halaman yang hanya memerlukan tabel, seperti **Semua Akun**, tidak perlu
    menampilkan pemilih mode tampilan.
+
+## Pengurutan pada mode tabel
+
+- Semua tabel memakai komponen bersama `SortableTable` di
+  `apps/admin/src/sortable-table.tsx`.
+- Klik header kolom data untuk urutan menaik; klik kembali untuk urutan menurun.
+  Tampilkan indikator arah dan `aria-sort` pada header aktif.
+- Header memakai tombol yang dapat dioperasikan dengan keyboard (Tab, Enter,
+  Space), tooltip yang jelas, dan penanda fokus.
+- Kolom yang isinya hanya tombol/aksi tidak mempunyai kontrol pengurutan.
+  Kolom seleksi dan header gabungan (`colSpan`) juga tidak diurutkan.
+  Gunakan `data-sortable={false}` untuk pengecualian eksplisit.
+- Urutkan angka, nominal uang, tanggal, jam, serta hari berdasarkan nilainya;
+  teks memakai urutan natural bahasa Indonesia. Nilai kosong ditempatkan terakhir.
+- Gunakan `data-sort-value` pada sel bila nilai untuk pengurutan berbeda dengan
+  teks tampilannya, misalnya tanggal ISO, angka mentah, atau komponen status.
+- Pengurutan dilakukan sebelum pagination/lazy load. Untuk data API, urutkan
+  seluruh hasil filter di server atau muat seluruh hasil sebelum mengurutkannya;
+  jangan hanya mengurutkan satu halaman. Kembali ke halaman pertama saat kolom
+  atau arah pengurutan berubah.
+- Pengurutan tidak mengubah filter, isi data, atau keterkaitan tombol aksi baris.
 
 ## Yayasan — List Sekolah
 
@@ -87,3 +124,45 @@ halaman lain yang mempunyai mode tabel:
 - Kompetensi guru tidak menjadi menu mandiri. Binding guru ke mata pelajaran dan tingkat kelas dikelola melalui **Yayasan → Guru dan Staff**, sedangkan akun dan role dikelola melalui **Pengaturan → Semua Akun** dan **Pengaturan → Role Setting**.
 - Grup **Guru** menampung pekerjaan harian guru: **Input Nilai**, **Penilaian**, dan **Absensi**. Grup beserta submenunya tidak memakai tanda `*`, hanya tersedia untuk realm akun `OPERATIONAL`, dan tetap mengikuti permission setiap halaman.
 - Grup menu **Komunikasi** dan submenu mandirinya tidak digunakan. Agenda sekolah, pengumuman, pertemuan wali, rapat guru/staf, kegiatan siswa, tenggat, dan pengingat dikelola sebagai klasifikasi event pada **Kalender Akademik**. Layanan notifikasi tetap menjadi mekanisme backend, bukan halaman menu tersendiri.
+
+## Guru > Penilaian
+
+- Portal Penilaian hanya untuk realm `OPERATIONAL` dan tetap mengikuti permission
+  `grade.read/create/update/delete`.
+- Guru melihat pelajaran kelas yang terhubung ke akun guru yang sedang login.
+  Admin sekolah dapat memilih guru lain; jika admin juga terhubung ke profil guru,
+  pilihan awal tetap pelajaran miliknya sendiri.
+- Item penilaian disimpan per pelajaran kelas dan semester. Daftar awal dapat
+  diterapkan lewat **Gunakan item default**, lalu nama, jumlah item, bobot,
+  nilai maksimum, dan tanggal dapat disesuaikan melalui right drawer bersama.
+- Default: PR 10%, Ujian 1-6 masing-masing 5%, UTS 20%, UAS 30%, Remidi 10%.
+  Remidi ikut dihitung sebagai item berbobot; total bobot wajib tepat 100%.
+- Nilai maksimum awal adalah 100. Tanggal awal tersebar di dalam semester dan
+  dapat diedit. Nilai setiap item dinormalisasi ke skala 100 sebelum pembobotan.
+- Item yang sudah memiliki nilai siswa tidak dapat dihapus. Nilai maksimum tidak
+  boleh lebih rendah daripada nilai tersimpan. Penilaian terkunci setelah rapor
+  kelas/semester direview; perubahan draft mengharuskan rapor dihitung ulang.
+- Pembatasan guru berlaku pada API portal, katalog item/kategori, akses detail,
+  perubahan/penghapusan item, dan pembacaan nilai, bukan hanya filter tampilan.
+
+## Guru > Input Nilai
+
+- Guru memilih penilaian berdasarkan mata pelajaran/semester, kemudian kelas.
+  Pilihan mengikuti penugasan guru yang login; akses lintas guru hanya bagi admin.
+- Tabel berbentuk matriks: baris siswa, kolom item dari **Guru > Penilaian**.
+  Header setiap item menampilkan nama, bobot, dan nilai maksimum. Nama siswa dan
+  header tetap terlihat saat tabel digulir.
+- Input nilai dilakukan langsung di sel tabel; ini pengecualian aturan form
+  melalui drawer karena alur pengisian matriks membutuhkan penyuntingan inline.
+- Setiap sel otomatis disimpan saat Enter atau kehilangan fokus. Tampilkan
+  status menyimpan, tersimpan, dan gagal. Nilai yang gagal tetap berada di form
+  untuk diperbaiki atau dicoba kembali; pergantian pilihan dinonaktifkan saat
+  perubahan belum tersimpan.
+- Kosong berarti belum dinilai; angka 0 adalah nilai yang sah. Mengosongkan nilai
+  tersimpan merupakan penghapusan nilai dan juga dicatat dalam riwayat.
+- Log perubahan menyimpan siswa, item penilaian, nilai lama/baru, pengguna, aksi,
+  dan waktu. Log dibuat atomik bersama nilai, bersifat append-only, dan tersedia
+  melalui drawer **Riwayat perubahan** dengan filter siswa/item dan pagination.
+- Perubahan bersamaan memakai pemeriksaan versi agar tidak menimpa nilai sesi
+  lain. Validasi guru pengampu, keanggotaan kelas, nilai maksimum, dan penguncian
+  rapor berlaku di server.

@@ -1,0 +1,34 @@
+﻿th .table-sort-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+th .table-sort-button:hover {
+  background: transparent;
+  color: var(--blue);
+}
+th .table-sort-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 5px;
+}
+.table-sort-indicator {
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+th[aria-sort="ascending"] .table-sort-indicator,
+th[aria-sort="descending"] .table-sort-indicator {
+  opacity: 1;
+  color: var(--blue);
+}

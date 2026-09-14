@@ -1,3 +1,4 @@
+import { SortableTable, type TableSort } from "../sortable-table";
 import React, { useState, useEffect } from "react";
 import type {
   Actor,
@@ -41,6 +42,8 @@ export function ResourcePage({
     limit: 20,
   });
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<TableSort>(null);
+  const sorting = sort !== null;
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -66,9 +69,23 @@ export function ResourcePage({
     let active = true;
     setLoading(true);
     setError("");
-    api<Page<Entity>>(
-      `${resource}?page=${page}&limit=20&search=${encodeURIComponent(search)}`,
-    )
+    const load = async () => {
+      const first = await api<Page<Entity>>(
+        `${resource}?page=${sorting ? 1 : page}&limit=${sorting ? 200 : 20}&search=${encodeURIComponent(search)}`,
+      );
+      if (!sorting) return first;
+      const data = [...first.data];
+      for (let next = 2; data.length < first.total; next++) {
+        const batch = await api<Page<Entity>>(
+          `${resource}?page=${next}&limit=200&search=${encodeURIComponent(search)}`,
+        );
+        if (!active) return first;
+        if (!batch.data.length) break;
+        data.push(...batch.data);
+      }
+      return { ...first, data };
+    };
+    load()
       .then((r) => {
         if (active) setResult(r);
       })
@@ -81,7 +98,7 @@ export function ResourcePage({
     return () => {
       active = false;
     };
-  }, [resource, page, search, version]);
+  }, [resource, sorting ? 1 : page, search, version, sorting]);
   useEffect(() => {
     if (!editor) return;
     const close = (event: KeyboardEvent) => {
@@ -203,7 +220,15 @@ export function ResourcePage({
           </div>
         ) : result.data.length ? (
           <div className="table-wrap">
-            <table>
+            <SortableTable
+              sort={sort}
+              onSortChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+              rowOffset={sorting ? (page - 1) * 20 : 0}
+              rowLimit={20}
+            >
               <thead>
                 <tr>
                   {definition.fields.slice(0, 5).map((f) => (
@@ -240,7 +265,7 @@ export function ResourcePage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         ) : (
           <Empty />

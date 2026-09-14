@@ -45,7 +45,10 @@ test("simulation curriculum settings, schedule preview and teacher workload", as
     .getByLabel("Semester", { exact: true })
     .selectOption({ label: "Semester 1 - 2026/2027" });
   await expect(page.getByText("210 data", { exact: true })).toBeVisible();
-  await page.getByLabel("Mode tampilan").selectOption("load");
+  await page
+    .getByRole("group", { name: "Mode tampilan" })
+    .getByRole("button", { name: "Beban guru", exact: true })
+    .click();
   await expect(
     page.getByRole("columnheader", { name: "Jam mengajar/pekan" }),
   ).toBeVisible();
@@ -59,7 +62,10 @@ test("simulation curriculum settings, schedule preview and teacher workload", as
     .getByRole("button", { name: "Simpan jadwal", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByLabel("Mode tampilan").selectOption("week");
+  await page
+    .getByRole("group", { name: "Mode tampilan" })
+    .getByRole("button", { name: "Per hari", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Senin", exact: true }),
   ).toBeVisible();

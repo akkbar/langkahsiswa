@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useEffect, useMemo, useState } from "react";
 import type { Actor } from "../../../../packages/shared-types/src";
 import { api, send } from "../api";
@@ -439,7 +440,10 @@ function DataSection({
               setVisibleCount((count) => Math.min(count + 30, filtered.length));
           }}
         >
-          <table>
+          <SortableTable
+            rowLimit={visibleCount}
+            onSortChange={() => setVisibleCount(30)}
+          >
             <thead>
               <tr>
                 {columns.map(([key, label]) => (
@@ -449,7 +453,7 @@ function DataSection({
               </tr>
             </thead>
             <tbody>
-              {visible.map((row) => (
+              {filtered.map((row) => (
                 <tr key={row.id}>
                   {columns.map(([key]) => (
                     <td key={key}>
@@ -475,7 +479,7 @@ function DataSection({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </SortableTable>
           {visible.length < filtered.length && (
             <div className="table-lazy-status" role="status">
               Scroll untuk memuat data berikutnya…

@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useEffect, useState } from "react";
 import type {
   Actor,
@@ -983,7 +984,7 @@ export function AcademicYearSetupPage({
           <div className="empty">Memuat data…</div>
         ) : result.data.length ? (
           <div className="table-wrap">
-            <table>
+            <SortableTable>
               <thead>
                 <tr>
                   <th>Tahun ajaran</th>
@@ -1029,7 +1030,7 @@ export function AcademicYearSetupPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         ) : (
           <Empty text="Belum ada setup tahun ajaran." />

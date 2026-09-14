@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useState, useEffect } from "react";
 import type {
   Actor,
@@ -152,7 +153,7 @@ export function AttendancePage({
             <Empty text="Kelas belum memiliki siswa. Tambahkan melalui Anggota Kelas." />
           ) : (
             <div className="table-wrap">
-              <table>
+              <SortableTable>
                 <thead>
                   <tr>
                     <th>NIS</th>
@@ -207,7 +208,7 @@ export function AttendancePage({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </SortableTable>
             </div>
           )}
           {can(user, "attendance.write") && (

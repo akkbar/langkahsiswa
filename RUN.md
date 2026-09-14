@@ -182,3 +182,34 @@ Perubahan durasi bobot tidak menggeser jadwal tersimpan secara langsung.
 Susun dan simpan ulang jadwal untuk menerapkan durasi baru. Bobot simulasi
 berjumlah 35 per kelas per pekan (1.400 menit); ini contoh data, bukan klaim
 ketentuan kurikulum resmi.
+
+## Portal Guru > Penilaian
+
+Login sebagai `guru01@simulasi.example.test` (yayasan `simulasi`, kata sandi
+`Simulasi!2026`), lalu buka **Guru > Penilaian**. Guru hanya melihat pelajaran
+kelas yang ditugaskan kepadanya. Admin sekolah dapat memilih guru lain.
+
+Pilih pelajaran kelas/semester, klik **Gunakan item default**, review tanggal,
+lalu simpan. Gunakan **Atur item & bobot** untuk mengubah daftar. Total wajib
+100%: PR 10%, Ujian 1-6 masing-masing 5%, UTS 20%, UAS 30%, dan Remidi 10%.
+Remidi merupakan komponen berbobot. Nilai maksimum awal setiap item adalah 100.
+
+Daftar ini langsung tersedia di **Guru > Input Nilai**. Bobot tersambung ke
+perhitungan rapor. Item yang sudah mempunyai nilai tidak dapat dihapus; rapor
+yang telah direview mengunci perubahan penilaian.
+
+## Input Nilai dalam tabel siswa x penilaian
+
+Jalankan `npm run db:migrate` untuk memasang pencatatan perubahan nilai.
+Buka **Guru > Input Nilai**, pilih mata pelajaran/semester pada pilihan
+**Penilaian**, kemudian **Kelas**. Baris berisi siswa dan kolom berisi seluruh
+item dari **Guru > Penilaian** untuk kelas tersebut.
+
+Isi sel lalu tekan Enter atau pindah kolom untuk menyimpan otomatis. Nilai
+kosong berarti belum dinilai; 0 tetap dihitung sebagai nilai. Bila penyimpanan
+gagal, perbaiki nilai atau gunakan **Simpan perubahan**. Untuk konflik nilai
+antar sesi, gunakan **Batalkan & muat ulang** sebelum mengisi kembali.
+
+Tombol **Riwayat perubahan** menampilkan log nilai lama, nilai baru, pengguna,
+dan waktu, termasuk saat nilai dikosongkan. Riwayat dicatat mulai migrasi 039
+berlaku; nilai lama sebelum migrasi tidak dibuatkan log historis buatan.

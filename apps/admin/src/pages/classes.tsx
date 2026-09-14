@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useMemo, useState } from "react";
 import type { Actor, Entity } from "../../../../packages/shared-types/src";
 import type { Catalog } from "../components";
@@ -302,7 +303,7 @@ export function ClassesPage({
       ) : (
         <section className="card class-table">
           <div className="table-wrap">
-            <table>
+            <SortableTable>
               <thead>
                 <tr>
                   <th>Nama kelas</th>
@@ -331,7 +332,7 @@ export function ClassesPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           </div>
         </section>
       )}

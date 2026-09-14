@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useEffect, useMemo, useState } from "react";
 import type { Actor, Entity } from "../../../../packages/shared-types/src";
 import { api, send } from "../api";
@@ -192,7 +193,10 @@ export function SchoolAccountsPage({
                 setVisibleLimit((current) => current + 30);
             }}
           >
-            <table>
+            <SortableTable
+              rowLimit={visibleLimit}
+              onSortChange={() => setVisibleLimit(30)}
+            >
               <thead>
                 <tr>
                   <th>Akun</th>
@@ -202,7 +206,7 @@ export function SchoolAccountsPage({
                 </tr>
               </thead>
               <tbody>
-                {visible.map((account) => {
+                {filtered.map((account) => {
                   const assigned = rolesOf(account);
                   return (
                     <tr key={account.id}>
@@ -227,7 +231,7 @@ export function SchoolAccountsPage({
                   );
                 })}
               </tbody>
-            </table>
+            </SortableTable>
             {visible.length < filtered.length && (
               <div className="table-lazy-status" role="status">
                 Scroll untuk memuat akun berikutnya…

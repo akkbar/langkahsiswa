@@ -1,9 +1,11 @@
-﻿import React, { useEffect, useState } from "react";
+import { SortableTable } from "../sortable-table";
+import React, { useEffect, useState } from "react";
 import type { Actor } from "../../../../packages/shared-types/src";
 import { can, ErrorBox, type Catalog } from "../components";
 import { api, send } from "../api";
 import { PlanningDrawer } from "./subjects";
 import "./planning.css";
+import { ScheduleCalendar } from "./schedule-calendar";
 const days = [
   "",
   "Senin",
@@ -148,18 +150,66 @@ export function TimetablesPage({
                 </option>
               ))}
           </select>
-          <select
-            aria-label="Mode tampilan"
-            value={view}
-            onChange={(e) => {
-              setView(e.target.value);
-              localStorage.setItem("lesson-view", e.target.value);
-            }}
-          >
-            <option value="table">Tabel jadwal</option>
-            <option value="week">Per hari</option>
-            <option value="load">Beban guru</option>
-          </select>
+          <div className="view-toggle" role="group" aria-label="Mode tampilan">
+            {[
+              {
+                value: "table",
+                label: "Tabel jadwal",
+                icon: (
+                  <>
+                    <rect x="3" y="4" width="18" height="16" rx="1" />
+                    <path d="M3 9h18M3 14h18M9 4v16" />
+                  </>
+                ),
+              },
+              {
+                value: "week",
+                label: "Per hari",
+                icon: (
+                  <>
+                    <rect x="3" y="4" width="18" height="16" rx="1" />
+                    <path d="M9 4v16M15 4v16M3 9h18" />
+                  </>
+                ),
+              },
+              {
+                value: "calendar",
+                label: "Kalender",
+                icon: (
+                  <>
+                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                    <path d="M7 3v4M17 3v4M3 11h18M7 15h2M13 15h2M7 18h2" />
+                  </>
+                ),
+              },
+              {
+                value: "load",
+                label: "Beban guru",
+                icon: (
+                  <>
+                    <path d="M4 3v18h17M8 17v-5M13 17V8M18 17V5" />
+                  </>
+                ),
+              },
+            ].map((mode) => (
+              <button
+                key={mode.value}
+                type="button"
+                className={view === mode.value ? "active" : ""}
+                aria-label={mode.label}
+                title={mode.label}
+                aria-pressed={view === mode.value}
+                onClick={() => {
+                  setView(mode.value);
+                  localStorage.setItem("lesson-view", mode.value);
+                }}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  {mode.icon}
+                </svg>
+              </button>
+            ))}
+          </div>
           {can(user, "academic.create") && (
             <button
               className="primary"
@@ -178,8 +228,14 @@ export function TimetablesPage({
       <ErrorBox error={!open ? error : ""} />
       <section className="card">
         <div className="table-wrap">
-          {view === "load" ? (
-            <table>
+          {view === "calendar" ? (
+            <ScheduleCalendar rows={rows} />
+          ) : view === "load" ? (
+            <SortableTable
+              rowOffset={(page - 1) * 30}
+              rowLimit={30}
+              onSortChange={() => setPage(1)}
+            >
               <thead>
                 <tr>
                   <th>Guru</th>
@@ -190,7 +246,7 @@ export function TimetablesPage({
                 </tr>
               </thead>
               <tbody>
-                {loads.slice((page - 1) * 30, page * 30).map((r) => (
+                {loads.map((r) => (
                   <tr key={r.id}>
                     <td>{r.name}</td>
                     <td>{r.weekly_weight}</td>
@@ -200,7 +256,7 @@ export function TimetablesPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           ) : view === "week" ? (
             <div className="planning-week">
               {days.slice(1).map((day, i) => (
@@ -223,7 +279,11 @@ export function TimetablesPage({
               ))}
             </div>
           ) : (
-            <table>
+            <SortableTable
+              rowOffset={(page - 1) * 30}
+              rowLimit={30}
+              onSortChange={() => setPage(1)}
+            >
               <thead>
                 <tr>
                   <th>Hari</th>
@@ -235,7 +295,7 @@ export function TimetablesPage({
                 </tr>
               </thead>
               <tbody>
-                {rows.slice((page - 1) * 30, page * 30).map((r, i) => (
+                {rows.map((r, i) => (
                   <tr key={r.id || i}>
                     <td>{days[r.day_of_week]}</td>
                     <td>
@@ -248,7 +308,7 @@ export function TimetablesPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
           )}
           {!(view === "load" ? loads : rows).length && (
             <div className="empty">
@@ -274,7 +334,13 @@ export function TimetablesPage({
             </button>
           </div>
         )}
-        {view !== "week" && (
+        {view === "calendar" && (
+          <div className="pagination">
+            <span>{rows.length} sesi per pekan</span>
+            <span>Pilih kelas untuk fokus. Klik pelajaran untuk detail.</span>
+          </div>
+        )}
+        {view !== "week" && view !== "calendar" && (
           <div className="pagination">
             <span>{(view === "load" ? loads : rows).length} data</span>
             <div>
@@ -396,7 +462,7 @@ export function TimetablesPage({
                     per pekan
                   </p>
                 ))}
-                <table>
+                <SortableTable>
                   <thead>
                     <tr>
                       <th>Hari/jam</th>
@@ -419,7 +485,7 @@ export function TimetablesPage({
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </SortableTable>
               </div>
               <div className="school-drawer-actions">
                 <button

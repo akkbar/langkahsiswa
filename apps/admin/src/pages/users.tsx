@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useEffect, useMemo, useState } from "react";
 import type { Actor } from "../../../../packages/shared-types/src";
 import { ErrorBox } from "../components";
@@ -262,7 +263,7 @@ export function UsersPage({
           <span className="badge">{filteredRoles.length} role</span>
         </div>
         <div className="table-wrap">
-          <table>
+          <SortableTable>
             <thead>
               <tr>
                 <th>Role name</th>
@@ -303,7 +304,7 @@ export function UsersPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </SortableTable>
           {!loading && !filteredRoles.length && (
             <div className="empty">
               {search

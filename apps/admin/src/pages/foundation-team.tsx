@@ -1,3 +1,4 @@
+import { SortableTable } from "../sortable-table";
 import React, { useEffect, useMemo, useState } from "react";
 import type {
   Actor,
@@ -317,7 +318,10 @@ export function FoundationTeamPage({
                 setVisibleLimit((current) => current + 30);
             }}
           >
-            <table>
+            <SortableTable
+              rowLimit={visibleLimit}
+              onSortChange={() => setVisibleLimit(30)}
+            >
               <thead>
                 <tr>
                   <th>Nama</th>
@@ -330,7 +334,7 @@ export function FoundationTeamPage({
                 </tr>
               </thead>
               <tbody>
-                {visible.map((row) => (
+                {filtered.map((row) => (
                   <tr key={row.id}>
                     <td>
                       <strong>{String(row.name)}</strong>
@@ -360,7 +364,7 @@ export function FoundationTeamPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </SortableTable>
             {visible.length < filtered.length && (
               <div className="table-lazy-status" role="status">
                 Scroll untuk memuat data berikutnya…
