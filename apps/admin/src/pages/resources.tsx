@@ -21,7 +21,13 @@ export function ResourcePage({
   user,
   catalog,
   refresh,
+  headerActions,
+  extraColumn,
+  rowActions,
 }: {
+  headerActions?: React.ReactNode;
+  extraColumn?: { title: string; render: (row: Entity) => React.ReactNode };
+  rowActions?: (row: Entity) => React.ReactNode;
   resource: string;
   user: Actor;
   catalog: Catalog;
@@ -172,6 +178,7 @@ export function ResourcePage({
             />
             <span className="muted">{result.total} data</span>
           </div>
+          {headerActions}
           {creatable && (
             <button className="primary" onClick={() => open(null, "create")}>
               + Tambah{" "}
@@ -202,6 +209,7 @@ export function ResourcePage({
                   {definition.fields.slice(0, 5).map((f) => (
                     <th key={f.key}>{f.label}</th>
                   ))}
+                  {extraColumn && <th>{extraColumn.title}</th>}
                   <th>Aksi</th>
                 </tr>
               </thead>
@@ -211,7 +219,9 @@ export function ResourcePage({
                     {definition.fields.slice(0, 5).map((f) => (
                       <td key={f.key}>{display(row, f)}</td>
                     ))}
+                    {extraColumn && <td>{extraColumn.render(row)}</td>}
                     <td className="actions">
+                      {rowActions?.(row)}
                       <button onClick={() => open(row, "detail")}>
                         Detail
                       </button>

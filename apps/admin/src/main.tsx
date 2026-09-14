@@ -33,8 +33,10 @@ import {
 import { DashboardPage, SitesPage } from "./pages/dashboard";
 import { FamilyPage } from "./pages/family";
 import { SchoolAccountsPage } from "./pages/school-accounts";
+import { FoundationTeamPage } from "./pages/foundation-team";
 import { FoundationProfilePage } from "./pages/foundation-profile";
 import { CbtPage } from "./pages/cbt";
+import { TimetablesPage } from "./pages/timetables";
 import { SubjectsPage } from "./pages/subjects";
 import { AcademicYearSetupPage } from "./pages/academic-year-setup";
 const homeRoute = (user: Actor) => {
@@ -46,6 +48,41 @@ const homeRoute = (user: Actor) => {
   if (user.roles.includes("STUDENT")) return "portal";
   return "dashboard";
 };
+
+const boardingNavigation = [
+  { key: "boarding", section: "hunian", title: "Hunian" },
+  {
+    key: "boarding-perizinan",
+    section: "perizinan",
+    title: "Izin & Kunjungan",
+  },
+  {
+    key: "boarding-pembinaan",
+    section: "pembinaan",
+    title: "Pembinaan & Tahfidz",
+  },
+  {
+    key: "boarding-mutabaah",
+    section: "mutabaah",
+    title: "Mutabaah Ibadah",
+  },
+  {
+    key: "boarding-kesehatan",
+    section: "kesehatan",
+    title: "Kesehatan",
+  },
+  { key: "boarding-diniyah", section: "diniyah", title: "Diniyah" },
+  {
+    key: "boarding-kegiatan",
+    section: "kegiatan",
+    title: "Kegiatan & Laundry",
+  },
+  {
+    key: "boarding-modul",
+    section: "modul",
+    title: "Aktivasi Modul",
+  },
+] as const;
 
 const groupedNavigation: Record<string, string[]> = {
   Guru: ["grades", "assessments", "attendance"],
@@ -66,12 +103,13 @@ const groupedNavigation: Record<string, string[]> = {
   ],
   Website: ["website", "domains"],
   PPDB: ["ppdb"],
-  Pengaturan: ["security", "users", "files"],
+  Pengaturan: ["security", "users", "school-team", "files"],
   Keuangan: ["billing", "wallet", "pos"],
+  "Boarding School": boardingNavigation.map(({ key }) => key),
   Yayasan: [
     "foundation-profile",
     "sites",
-    "school-team",
+    "foundation-team",
     "subjects",
     "grade-levels",
     "classrooms",
@@ -224,7 +262,7 @@ function Workspace({
     },
     {
       key: "users",
-      title: "Permission dan Role Setting",
+      title: "Role Setting",
       group: "Pengaturan",
       permission: "user.read",
     },
@@ -272,10 +310,17 @@ function Workspace({
       group: "Administrasi",
       permission: "academic_setup.read",
     });
-  if (can(user, "people.read"))
+  if (can(user, "user.read"))
     links.push({
       key: "school-team",
       title: "Semua Akun",
+      group: "Pengaturan",
+      permission: "user.read",
+    });
+  if (can(user, "people.read"))
+    links.push({
+      key: "foundation-team",
+      title: "Guru dan Staff",
       group: "Yayasan",
       permission: "people.read",
     });
@@ -369,12 +414,14 @@ function Workspace({
       permission: "domain.read",
     });
   if (can(user, "boarding.read"))
-    links.push({
-      key: "boarding",
-      title: "Boarding School",
-      group: "Operasional",
-      permission: "boarding.read",
-    });
+    links.push(
+      ...boardingNavigation.map(({ key, title }) => ({
+        key,
+        title,
+        group: "Boarding School",
+        permission: "boarding.read",
+      })),
+    );
   if (can(user, "library.read"))
     links.push({
       key: "library",
@@ -411,7 +458,7 @@ function Workspace({
   const dataKeys = new Set([
     "sites",
     "foundation-profile",
-    "school-team",
+    "foundation-team",
     "subjects",
     "grade-levels",
     "classrooms",
@@ -441,8 +488,9 @@ function Workspace({
     else if (academicKeys.has(link.key)) link.group = "Akademik";
     else if (["billing", "wallet", "pos"].includes(link.key))
       link.group = "Keuangan";
-    else if (["boarding", "library"].includes(link.key))
-      link.group = "Operasional";
+    else if (groupedNavigation["Boarding School"].includes(link.key))
+      link.group = "Boarding School";
+    else if (link.key === "library") link.group = "Operasional";
     else link.group = "Publikasi";
   }
   if (user.account_level !== "OPERATIONAL")
@@ -455,6 +503,7 @@ function Workspace({
     "Akademik",
     "Guru",
     "Keuangan",
+    "Boarding School",
     "Operasional",
     "PPDB",
     "Publikasi",
@@ -467,6 +516,9 @@ function Workspace({
     links.some((link) => link.group === group),
   );
   const allowed = links.some((l) => l.key === route);
+  const activeBoardingSection = boardingNavigation.find(
+    ({ key }) => key === route,
+  );
   const activeSchool = catalog.schools?.[0];
   const schoolName = String(
     activeSchool?.name || user.tenant_name || "Sekolah Anda",
@@ -731,8 +783,16 @@ function Workspace({
               catalog={catalog}
               refresh={refresh}
             />
+          ) : route === "foundation-team" ? (
+            <FoundationTeamPage
+              user={user}
+              catalog={catalog}
+              refresh={refresh}
+            />
           ) : route === "subjects" ? (
             <SubjectsPage user={user} catalog={catalog} refresh={refresh} />
+          ) : route === "timetables" ? (
+            <TimetablesPage user={user} catalog={catalog} />
           ) : resources[route] ? (
             <ResourcePage
               key={route}
@@ -767,8 +827,13 @@ function Workspace({
             <WebsiteBuilderPage user={user} catalog={catalog} />
           ) : route === "domains" ? (
             <DomainsPage user={user} />
-          ) : route === "boarding" ? (
-            <BoardingPage user={user} catalog={catalog} />
+          ) : activeBoardingSection ? (
+            <BoardingPage
+              user={user}
+              catalog={catalog}
+              section={activeBoardingSection.section}
+              title={activeBoardingSection.title}
+            />
           ) : route === "library" ? (
             <LibraryPage user={user} catalog={catalog} />
           ) : route === "security" ? (

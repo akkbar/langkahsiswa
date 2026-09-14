@@ -21,7 +21,8 @@
     "test:ui": "playwright test",
     "platform:admin": "tsx apps/api/scripts/platform-admin.ts",
     "format": "prettier --write \"apps/*/src/**/*.{ts,tsx,css}\" \"apps/api/{scripts,test}/**/*.ts\" \"packages/*/src/**/*.ts\"",
-    "format:check": "prettier --check \"apps/*/src/**/*.{ts,tsx,css}\" \"apps/api/{scripts,test}/**/*.ts\" \"packages/*/src/**/*.ts\""
+    "format:check": "prettier --check \"apps/*/src/**/*.{ts,tsx,css}\" \"apps/api/{scripts,test}/**/*.ts\" \"packages/*/src/**/*.ts\"",
+    "db:seed:simulation": "tsx apps/api/scripts/seed-simulation.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

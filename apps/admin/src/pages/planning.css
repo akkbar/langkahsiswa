@@ -1,0 +1,75 @@
+﻿.planning-drawer-body {
+  padding: 24px;
+  overflow-y: auto;
+}
+.planning-drawer-body fieldset {
+  border: 1px solid var(--border, #ddd);
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+.planning-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.planning-days label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.planning-days input {
+  width: auto;
+}
+.planning-week {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(190px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+.planning-week article {
+  padding: 12px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.planning-preview {
+  max-height: 45vh;
+  overflow: auto;
+}
+.planning-page .page-actions {
+  flex-wrap: wrap;
+}
+.planning-page > .page-title {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.planning-page .page-actions {
+  flex: 1;
+  justify-content: flex-end;
+  align-items: center;
+}
+.planning-page .page-actions > input {
+  width: 240px;
+}
+.planning-page .page-actions > select {
+  width: auto;
+  max-width: 230px;
+}
+.planning-days label {
+  flex-direction: row;
+  font-size: 13px;
+}
+@media (max-width: 700px) {
+  .planning-page .page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .planning-page .page-actions > input {
+    width: 100%;
+  }
+  .planning-page .page-actions > select {
+    flex: 1;
+    max-width: 100%;
+  }
+}

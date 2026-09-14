@@ -141,6 +141,7 @@ export const rolePermissions: Record<Role, string[]> = {
     "site.write",
     "foundation.write",
     "academic_setup.write",
+    "hr_private.write",
   ],
   PARENT: [
     "report.own",
@@ -172,6 +173,19 @@ export const rolePermissions: Record<Role, string[]> = {
     "site.read",
     "foundation.read",
   ],
+};
+const roleNames: Record<Role, string> = {
+  SUPER_ADMIN: "Super Admin",
+  SCHOOL_ADMIN: "Admin Sekolah",
+  PRINCIPAL: "Kepala Sekolah",
+  TEACHER: "Guru",
+  FINANCE: "Keuangan",
+  STAFF: "Staff",
+  FOUNDATION_STAFF: "Staff Yayasan",
+  FOUNDATION_HEAD: "Kepala Yayasan",
+  PARENT: "Orang Tua / Wali",
+  STUDENT: "Siswa",
+  CANTEEN_ADMIN: "Administrator Kantin",
 };
 export function allow(actor: Actor, permission: string) {
   if (
@@ -216,11 +230,11 @@ export async function initializeRoles(sql: Sql) {
           ? "FOUNDATION"
           : "SCHOOL";
     await sql.query(
-      `INSERT INTO roles(id,account_level,scope_level) VALUES($1,$2,$3)
+      `INSERT INTO roles(id,name,account_level,scope_level) VALUES($1,$2,$3,$4)
        ON CONFLICT(id) DO UPDATE SET
         account_level=excluded.account_level,
         scope_level=excluded.scope_level`,
-      [role, level, scopeLevel],
+      [role, roleNames[role], level, scopeLevel],
     );
     const normalizedPermissions = new Set(rolePermissions[role]);
     for (const permission of rolePermissions[role])
@@ -237,6 +251,11 @@ export async function initializeRoles(sql: Sql) {
       await sql.query(
         "INSERT INTO role_permissions(role_id,permission_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
         [role, permission],
+      );
+      await sql.query(
+        `INSERT INTO permission_realms(permission_id,account_level) VALUES($1,$2)
+         ON CONFLICT DO NOTHING`,
+        [permission, level],
       );
     }
   }
@@ -322,11 +341,28 @@ export class AuthService {
     if (!user) throw new UnauthorizedException("Sesi tidak berlaku");
     const grants = (
       await this.db.query(
-        `SELECT binding.role_id,rp.permission_id
+        `SELECT binding.role_id,effective_permission.permission_id
          FROM user_bindings binding
          JOIN organization_sites os ON os.organization_id=binding.organization_id
           AND os.tenant_id=$2
-         JOIN role_permissions rp ON rp.role_id=binding.role_id
+         LEFT JOIN LATERAL (
+          SELECT override_permission.permission_id
+          FROM organization_role_overrides override
+          JOIN organization_role_permissions override_permission
+           ON override_permission.organization_id=override.organization_id
+           AND override_permission.role_id=override.role_id
+          WHERE override.organization_id=binding.organization_id
+           AND override.role_id=binding.role_id
+          UNION ALL
+          SELECT default_permission.permission_id
+          FROM role_permissions default_permission
+          WHERE default_permission.role_id=binding.role_id
+           AND NOT EXISTS(
+            SELECT 1 FROM organization_role_overrides override
+            WHERE override.organization_id=binding.organization_id
+             AND override.role_id=binding.role_id
+           )
+         ) effective_permission ON true
          WHERE binding.account_id=$1 AND binding.status='ACTIVE'
          AND (binding.tenant_id IS NULL OR binding.tenant_id=$2)`,
         [user.account_id, tenantId],
@@ -336,7 +372,9 @@ export class AuthService {
       ...user,
       account_type: accountTypes[user.account_level as Actor["account_level"]],
       roles: [...new Set(grants.map((g) => g.role_id))],
-      permissions: [...new Set(grants.map((g) => g.permission_id))],
+      permissions: [
+        ...new Set(grants.map((g) => g.permission_id).filter(Boolean)),
+      ],
     };
   }
   async resolveTenant(req: Request, slug?: string) {
@@ -819,12 +857,20 @@ export class UsersController {
         );
       const configuredRoles = (
         await sql.query(
-          "SELECT id,scope_level FROM roles WHERE id=ANY($1::text[])",
-          [input.roles],
+          `SELECT id,scope_level,account_level FROM roles
+           WHERE id=ANY($1::text[]) AND (organization_id IS NULL OR organization_id=$2)`,
+          [input.roles, req.actor.organization_id],
         )
       ).rows;
       if (configuredRoles.length !== new Set(input.roles).size)
         throw new BadRequestException("Role belum terdaftar");
+      const configuredRealms = new Set(
+        configuredRoles.map((role) => role.account_level),
+      );
+      if (configuredRealms.size !== 1)
+        throw new BadRequestException(
+          "Semua role pada satu akun harus berasal dari realm yang sama",
+        );
       if (
         configuredRoles.some((role) => role.scope_level === "FOUNDATION") &&
         !(
@@ -841,14 +887,8 @@ export class UsersController {
         throw new ForbiddenException(
           "Hanya pengurus yayasan yang dapat memberikan role yayasan",
         );
-      const operationalRoles = input.roles.filter(
-        (role) => !["PARENT", "STUDENT", "CANTEEN_ADMIN"].includes(role),
-      );
-      const legacyLevel = operationalRoles.length
-        ? "OPERATIONAL"
-        : input.roles.includes("CANTEEN_ADMIN")
-          ? "TENANT"
-          : "FAMILY";
+      const legacyLevel = [...configuredRealms][0];
+      const operationalRoles = legacyLevel === "OPERATIONAL" ? input.roles : [];
       const account = (
         await sql.query(
           "INSERT INTO accounts(name,email,account_level) VALUES($1,$2,$3) ON CONFLICT(email) DO UPDATE SET name=excluded.name RETURNING id,account_level",
@@ -928,12 +968,19 @@ export class UsersController {
     allowOperational(req.actor);
     allow(req.actor, "user.update");
     const input = z
-      .object({ add: z.array(z.enum(roles)).min(1) })
-      .strict()
+      .union([
+        z.object({
+          add: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{0,79}$/)).min(1),
+        }),
+        z.object({
+          set: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{0,79}$/)).min(1),
+        }),
+      ])
       .parse(body);
+    const requestedRoles = "set" in input ? input.set : input.add;
     uuid.parse(id);
     if (
-      input.add.includes("SUPER_ADMIN") &&
+      requestedRoles.includes("SUPER_ADMIN") &&
       !req.actor.roles.includes("SUPER_ADMIN")
     )
       throw new ForbiddenException(
@@ -949,14 +996,26 @@ export class UsersController {
         )
       ).rows[0];
       if (!target) throw new BadRequestException("Akun tidak ditemukan");
+      if ("set" in input && target.id === req.actor.id)
+        throw new BadRequestException(
+          "Role akun yang sedang digunakan tidak dapat diubah sendiri",
+        );
       const configuredRoles = (
         await sql.query(
-          "SELECT id,scope_level FROM roles WHERE id=ANY($1::text[])",
-          [input.add],
+          `SELECT id,scope_level,account_level FROM roles
+           WHERE id=ANY($1::text[]) AND (organization_id IS NULL OR organization_id=$2)`,
+          [requestedRoles, req.actor.organization_id],
         )
       ).rows;
-      if (configuredRoles.length !== new Set(input.add).size)
+      if (configuredRoles.length !== new Set(requestedRoles).size)
         throw new BadRequestException("Role belum terdaftar");
+      if (
+        "set" in input &&
+        new Set(configuredRoles.map((role) => role.account_level)).size !== 1
+      )
+        throw new BadRequestException(
+          "Semua role pada satu akun harus berasal dari realm yang sama",
+        );
       if (
         configuredRoles.some((role) => role.scope_level === "FOUNDATION") &&
         !req.actor.roles.some((role) =>
@@ -966,6 +1025,24 @@ export class UsersController {
         throw new ForbiddenException(
           "Hanya pengurus yayasan yang dapat memberikan role yayasan",
         );
+      if ("set" in input) {
+        await sql.query(
+          `DELETE FROM user_roles WHERE tenant_id=$1 AND user_id=$2
+           AND NOT(role_id=ANY($3::text[]))`,
+          [req.actor.tenant_id, id, requestedRoles],
+        );
+        await sql.query(
+          `DELETE FROM user_bindings WHERE account_id=$1 AND organization_id=$2
+           AND (tenant_id=$3 OR tenant_id IS NULL)
+           AND NOT(role_id=ANY($4::text[]))`,
+          [
+            target.account_id,
+            target.organization_id,
+            req.actor.tenant_id,
+            requestedRoles,
+          ],
+        );
+      }
       for (const role of configuredRoles) {
         await sql.query(
           `INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,$3)
@@ -983,13 +1060,13 @@ export class UsersController {
           ],
         );
       }
-      if (input.add.some((role) => ["PARENT", "STUDENT"].includes(role)))
+      if (requestedRoles.some((role) => ["PARENT", "STUDENT"].includes(role)))
         await sql.query(
           "INSERT INTO family_accounts(account_id,created_via) VALUES($1,'SCHOOL_ADMIN') ON CONFLICT DO NOTHING",
           [target.account_id],
         );
       if (
-        input.add.some(
+        requestedRoles.some(
           (role) => !["PARENT", "STUDENT", "CANTEEN_ADMIN"].includes(role),
         )
       ) {
@@ -998,13 +1075,13 @@ export class UsersController {
            ON CONFLICT DO NOTHING`,
           [
             target.account_id,
-            input.add.includes("FOUNDATION_HEAD")
+            requestedRoles.includes("FOUNDATION_HEAD")
               ? "FOUNDATION_HEAD"
-              : input.add.includes("FOUNDATION_STAFF")
+              : requestedRoles.includes("FOUNDATION_STAFF")
                 ? "FOUNDATION_STAFF"
-                : input.add.includes("PRINCIPAL")
+                : requestedRoles.includes("PRINCIPAL")
                   ? "PRINCIPAL"
-                  : input.add.includes("TEACHER")
+                  : requestedRoles.includes("TEACHER")
                     ? "TEACHER"
                     : "STAFF",
           ],
@@ -1014,13 +1091,17 @@ export class UsersController {
           [target.account_id],
         );
       }
-      if (input.add.includes("CANTEEN_ADMIN"))
+      if (requestedRoles.includes("CANTEEN_ADMIN"))
         await sql.query(
           `INSERT INTO tenant_accounts(account_id,tenant_kind)
            VALUES($1,'CANTEEN') ON CONFLICT DO NOTHING`,
           [target.account_id],
         );
-      return { id, added_roles: input.add };
+      return {
+        id,
+        roles: "set" in input ? requestedRoles : undefined,
+        added_roles: "add" in input ? requestedRoles : undefined,
+      };
     });
   }
 }

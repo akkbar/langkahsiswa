@@ -51,6 +51,9 @@ import { FamilyController, PublicFamilyController } from "./family";
 import { FoundationController } from "./foundation";
 import { CbtController } from "./cbt";
 import { AcademicYearSetupController } from "./academic-year-setup";
+import { RoleSettingsController } from "./role-settings";
+import { LessonPlanningController } from "./lesson-planning";
+import { PersonnelController } from "./personnel";
 
 @Injectable()
 export class RedisConnection implements OnModuleDestroy {
@@ -115,6 +118,9 @@ class HealthController {
     PublicFamilyController,
     AuthController,
     UsersController,
+    RoleSettingsController,
+    PersonnelController,
+    LessonPlanningController,
     TenantsController,
     AttendanceController,
     GradebookController,

@@ -53,10 +53,12 @@ export function PageHeading({
   title,
   description,
   eyebrow = "KEUANGAN SEKOLAH",
+  actions,
 }: {
   title: string;
   description?: string;
   eyebrow?: string;
+  actions?: React.ReactNode;
 }) {
   return (
     <div className="page-title">
@@ -65,6 +67,7 @@ export function PageHeading({
         <h1>{title}</h1>
         {description && <p className="muted">{description}</p>}
       </div>
+      {actions && <div className="page-actions">{actions}</div>}
     </div>
   );
 }

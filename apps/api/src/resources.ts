@@ -48,6 +48,29 @@ async function ensureGradeLevelIsCustom(
       "Tingkat kelas SD, SMP, dan SMA dibuat otomatis dan tidak dapat diubah manual",
     );
 }
+async function ensureOperationalPersonnelAccount(
+  sql: Sql,
+  actor: AuthRequest["actor"],
+  userId: unknown,
+) {
+  if (!userId) return;
+  const parsedId = uuid.parse(userId);
+  const valid = await sql.query(
+    `SELECT 1 FROM users u
+     JOIN organization_sites os ON os.tenant_id=u.tenant_id
+     JOIN user_bindings binding ON binding.account_id=u.account_id
+      AND binding.organization_id=os.organization_id
+      AND (binding.tenant_id IS NULL OR binding.tenant_id=u.tenant_id)
+      AND binding.status='ACTIVE'
+     JOIN roles role ON role.id=binding.role_id AND role.account_level='OPERATIONAL'
+     WHERE u.tenant_id=$1 AND u.id=$2`,
+    [actor.tenant_id, parsedId],
+  );
+  if (!valid.rowCount)
+    throw new BadRequestException(
+      "Profil guru atau staff hanya dapat di-bind ke akun realm Operational",
+    );
+}
 @Controller("api/v1/tenants")
 @UseGuards(AuthGuard)
 export class TenantsController {
@@ -188,6 +211,8 @@ export class ResourcesController {
     allow(req.actor, `${r.permission}.create`);
     const data = r.schema.strict().parse(body);
     return this.db.transaction(req.actor.tenant_id, async (sql) => {
+      if (["teachers", "staff"].includes(key))
+        await ensureOperationalPersonnelAccount(sql, req.actor, data.user_id);
       if (key === "grade-levels")
         await ensureGradeLevelIsCustom(
           sql,
@@ -227,6 +252,8 @@ export class ResourcesController {
             "Relasi akademik yang sudah dibuat tidak dapat dipindahkan",
           );
       const merged = { ...old, ...patch };
+      if (["teachers", "staff"].includes(key))
+        await ensureOperationalPersonnelAccount(sql, req.actor, merged.user_id);
       await validateResource(sql, key, req.actor, merged, id);
       const keys = Object.keys(patch);
       return (

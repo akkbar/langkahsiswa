@@ -156,7 +156,8 @@ test("light and dark themes persist on desktop and mobile", async ({
       .locator(".nav-submenu a"),
   ).toHaveText([
     "Audit & Keamanan",
-    "Permission dan Role Setting",
+    "Role Setting",
+    "Semua Akun",
     "Management Berkas",
   ]);
   await page.getByRole("button", { name: "Pengaturan" }).click();
@@ -735,4 +736,93 @@ test("Google login handles first-time account linking with the current school co
       account_password: password,
     },
   ]);
+});
+
+test("boarding school pages follow the data-page standard", async ({
+  page,
+}) => {
+  await login(page);
+
+  const boardingGroup = page.locator(".nav-group").filter({
+    has: page.getByRole("button", { name: /Boarding School/ }),
+  });
+  const toggle = boardingGroup.getByRole("button", {
+    name: /Boarding School/,
+  });
+  await toggle.click();
+
+  const submenu = boardingGroup.locator(".nav-submenu a");
+  await expect(submenu).toHaveCount(8);
+  expect(
+    (await submenu.allTextContents()).map((text) =>
+      text.replace(/^\* /, "").trim(),
+    ),
+  ).toEqual([
+    "Hunian",
+    "Izin & Kunjungan",
+    "Pembinaan & Tahfidz",
+    "Mutabaah Ibadah",
+    "Kesehatan",
+    "Diniyah",
+    "Kegiatan & Laundry",
+    "Aktivasi Modul",
+  ]);
+
+  const sections = [
+    ["boarding", "Hunian", true],
+    ["boarding-perizinan", "Izin & Kunjungan", true],
+    ["boarding-pembinaan", "Pembinaan & Tahfidz", true],
+    ["boarding-mutabaah", "Mutabaah Ibadah", true],
+    ["boarding-kesehatan", "Kesehatan", true],
+    ["boarding-diniyah", "Diniyah", true],
+    ["boarding-kegiatan", "Kegiatan & Laundry", true],
+    ["boarding-modul", "Aktivasi Modul", false],
+  ] as const;
+
+  for (const [route, heading, hasCreateForm] of sections) {
+    await page.goto(`/#${route}`);
+    await expect(
+      page.getByRole("heading", { name: heading, exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("searchbox", { name: `Cari data ${heading}` }),
+    ).toBeVisible();
+    await expect(page.locator("main .ops-form-grid")).toHaveCount(0);
+    await expect(page.locator("main .tabs")).toHaveCount(0);
+
+    if (hasCreateForm) {
+      await page.getByRole("button", { name: "+ Tambah data" }).click();
+      const drawer = page.getByRole("dialog");
+      await expect(drawer).toBeVisible();
+      expect((await drawer.boundingBox())?.width).toBe(600);
+      await page.keyboard.press("Escape");
+      await expect(drawer).toBeHidden();
+    }
+  }
+
+  await page.goto("/#boarding");
+  const search = page.getByRole("searchbox", { name: "Cari data Hunian" });
+  await search.fill("data-yang-tidak-ada");
+  await expect(page.getByText("Data tidak ditemukan.").first()).toBeVisible();
+
+  await search.fill("");
+  await page.getByRole("button", { name: "+ Tambah data" }).click();
+  const desktopDrawer = page.getByRole("dialog");
+  await page
+    .getByRole("button", { name: "Tutup form Boarding School" })
+    .click({ position: { x: 10, y: 10 } });
+  await expect(desktopDrawer).toBeHidden();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "+ Tambah data" }).click();
+  const mobileDrawer = page.getByRole("dialog");
+  await expect(mobileDrawer).toBeVisible();
+  expect((await mobileDrawer.boundingBox())?.width).toBe(390);
+  await mobileDrawer.getByRole("button", { name: "Tutup" }).click();
+  await expect(mobileDrawer).toBeHidden();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
 });
