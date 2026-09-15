@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { verifyDomainDns } from "../src/domains";
+import { verifyDomainDns } from "../src/modules/domains/domains.service";
 
 test("custom domain accepts exact CNAME or ownership TXT proof", async () => {
   const cname = await verifyDomainDns(

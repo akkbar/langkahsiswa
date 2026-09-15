@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TokenPayload } from "google-auth-library";
-import { googleIdentity } from "../src/google-identity";
+import { googleIdentity } from "../src/modules/auth/google-identity.verifier";
 
 const claims = (fields: Partial<TokenPayload>) => ({
   iss: "https://accounts.google.com",

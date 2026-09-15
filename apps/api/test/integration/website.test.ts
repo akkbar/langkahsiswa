@@ -4,8 +4,11 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { Database } from "../../src/database";
-import { createTenant, initializeRoles } from "../../src/auth";
+import { Database } from "../../src/database/database.service";
+import {
+  createTenant,
+  initializeRoles,
+} from "../../src/modules/auth/tenant-provisioning";
 import { migrate } from "../../scripts/migrate";
 import { createApp } from "../../src/app";
 

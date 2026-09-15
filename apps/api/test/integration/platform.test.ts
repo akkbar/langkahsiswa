@@ -4,9 +4,12 @@ import { randomUUID } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { Database } from "../../src/database";
+import { Database } from "../../src/database/database.service";
 import { migrate } from "../../scripts/migrate";
-import { createTenant, initializeRoles } from "../../src/auth";
+import {
+  createTenant,
+  initializeRoles,
+} from "../../src/modules/auth/tenant-provisioning";
 import { createApp } from "../../src/app";
 test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
   const base = new Database();
@@ -833,15 +836,25 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         parentAuth = await login("school-a", "parent@a.test");
         assert.equal(parentAuth.user.account_level, "FAMILY");
         assert.equal(parentAuth.user.account_type, "FAMILY");
+        await post(
+          "users",
+          {
+            name: "Lintas Realm",
+            email: "cross-realm@a.test",
+            password: "Password!2026",
+            roles: ["STAFF", "PARENT"],
+          },
+          400,
+        );
         const mixed = await post("users", {
-          name: "Peran Campuran",
+          name: "Peran Operasional",
           email: "mixed@a.test",
           password: "Password!2026",
-          roles: ["STAFF", "PARENT"],
+          roles: ["STAFF"],
         });
         const mixedAuth = await login("school-a", "mixed@a.test");
         assert.ok(mixed.id);
-        assert.deepEqual(mixedAuth.user.roles.sort(), ["PARENT", "STAFF"]);
+        assert.deepEqual(mixedAuth.user.roles, ["STAFF"]);
         for (const permission of [
           "people.create",
           "people.read",
@@ -857,10 +870,16 @@ test("Phase 0–9: PostgreSQL HTTP integration", async (t) => {
         );
         const expandedMixedAuth = await login("school-a", "mixed@a.test");
         assert.deepEqual(expandedMixedAuth.user.roles.sort(), [
-          "PARENT",
           "STAFF",
           "TEACHER",
         ]);
+        await request(
+          `users/${mixed.id}/roles`,
+          "PATCH",
+          { set: ["STAFF", "PARENT"] },
+          token,
+          400,
+        );
         const canteen = await post("users", {
           name: "Admin Kantin",
           email: "kantin@a.test",

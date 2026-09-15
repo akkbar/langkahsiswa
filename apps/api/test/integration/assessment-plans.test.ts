@@ -1,11 +1,11 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { Database } from "../../src/database";
+import { Database } from "../../src/database/database.service";
 import { migrate } from "../../scripts/migrate";
 import { seedSimulation } from "../../scripts/seed-simulation";
 import { createApp } from "../../src/app";
-import { calculateFinalGrade } from "../../src/gradebook";
+import { calculateFinalGrade } from "../../src/modules/gradebook/gradebook.service";
 test("teacher assessment plans: ownership, custom weights, defaults, retained scores and report lock", async () => {
   const original = process.env.DATABASE_URL;
   const base = new Database();

@@ -3,6 +3,9 @@
 Panduan ini ditujukan untuk Windows PowerShell dan dijalankan dari root
 repository.
 
+Panduan struktur module, controller, service, dan repository backend tersedia di
+[apps/api/README.md](apps/api/README.md).
+
 ## Prasyarat
 
 - Node.js 22 atau lebih baru

@@ -1,6 +1,9 @@
 import "../src/config";
-import { Database } from "../src/database";
-import { initializeRoles, createTenant } from "../src/auth";
+import { Database } from "../src/database/database.service";
+import {
+  initializeRoles,
+  createTenant,
+} from "../src/modules/auth/tenant-provisioning";
 import { tenantSchema } from "../../../packages/validation/src";
 const db = new Database();
 async function bootstrap() {

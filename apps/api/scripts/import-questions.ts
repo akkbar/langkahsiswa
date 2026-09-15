@@ -1,5 +1,5 @@
 import "../src/config";
-import { Database } from "../src/database";
+import { Database } from "../src/database/database.service";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 

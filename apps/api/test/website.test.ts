@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { websiteContentSchema } from "../src/website";
+import { websiteContentSchema } from "../src/modules/website/website.service";
 
 test("website builder accepts the phase 19 block registry without raw HTML", () => {
   const content = websiteContentSchema.parse({

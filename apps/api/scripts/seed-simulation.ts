@@ -1,8 +1,14 @@
 ﻿import "../src/config";
 import { hash } from "bcryptjs";
-import { Database } from "../src/database";
-import { createTenant, initializeRoles } from "../src/auth";
-import { generateSchedule, type Lesson } from "../src/schedule-engine";
+import { Database } from "../src/database/database.service";
+import {
+  createTenant,
+  initializeRoles,
+} from "../src/modules/auth/tenant-provisioning";
+import {
+  generateSchedule,
+  type Lesson,
+} from "../src/modules/academic-year-setup/schedule-engine";
 export async function seedSimulation(db: Database) {
   const password = process.env.SEED_SIMULATION_PASSWORD || "Simulasi!2026";
   const passwordHash = await hash(password, 12);

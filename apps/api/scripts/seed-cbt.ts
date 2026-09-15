@@ -1,5 +1,5 @@
 import "../src/config";
-import { Database } from "../src/database";
+import { Database } from "../src/database/database.service";
 
 const sampleQuestions = [
   // --- SD: Matematika ---

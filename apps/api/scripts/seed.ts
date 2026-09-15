@@ -1,6 +1,9 @@
 import "../src/config";
-import { Database } from "../src/database";
-import { createTenant, initializeRoles } from "../src/auth";
+import { Database } from "../src/database/database.service";
+import {
+  createTenant,
+  initializeRoles,
+} from "../src/modules/auth/tenant-provisioning";
 export async function seed(db: Database) {
   return db.transaction(null, async (sql) => {
     await initializeRoles(sql);

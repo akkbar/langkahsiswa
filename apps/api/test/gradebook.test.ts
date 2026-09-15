@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calculateFinalGrade } from "../src/gradebook";
+import { calculateFinalGrade } from "../src/modules/gradebook/gradebook.service";
 import {
   attendanceSchema,
   date,

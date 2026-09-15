@@ -1,15 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { Database } from "../../src/database";
-import { createTenant, initializeRoles } from "../../src/auth";
+import { Database } from "../../src/database/database.service";
+import {
+  createTenant,
+  initializeRoles,
+} from "../../src/modules/auth/tenant-provisioning";
 import { migrate } from "../../scripts/migrate";
 import { createApp } from "../../src/app";
+import { NotificationDispatcher } from "../../src/modules/notifications/notification.dispatcher";
 import {
-  NotificationDispatcher,
   notifyStudent,
   PushError,
-} from "../../src/notifications";
+} from "../../src/modules/notifications/notification-delivery";
 
 test("Phase 14–16: event audiences, mobile ownership and persistent push delivery", async (t) => {
   const original = {

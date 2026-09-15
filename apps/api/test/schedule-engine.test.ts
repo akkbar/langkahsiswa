@@ -4,7 +4,7 @@ import {
   generateSchedule,
   timeMinutes,
   type Lesson,
-} from "../src/schedule-engine";
+} from "../src/modules/academic-year-setup/schedule-engine";
 const options = {
   days: [1, 2, 3, 4, 5],
   periods: 8,

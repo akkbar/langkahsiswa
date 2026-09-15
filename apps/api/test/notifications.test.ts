@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
-import { eventSchema, FcmSender, PushError } from "../src/notifications";
+import {
+  eventSchema,
+  FcmSender,
+  PushError,
+} from "../src/modules/notifications/notification-delivery";
 
 test("event targets and chronology are validated", () => {
   const value = {

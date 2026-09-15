@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { Database } from "../../src/database";
+import { Database } from "../../src/database/database.service";
 import { migrate } from "../../scripts/migrate";
-import { createTenant, initializeRoles } from "../../src/auth";
+import {
+  createTenant,
+  initializeRoles,
+} from "../../src/modules/auth/tenant-provisioning";
 import { createApp } from "../../src/app";
-import { GoogleIdentityVerifier } from "../../src/google-identity";
+import { GoogleIdentityVerifier } from "../../src/modules/auth/google-identity.verifier";
 
 test("Google login maps existing tenant accounts, preserves roles and revokes mobile sessions", async (t) => {
   const base = new Database();
