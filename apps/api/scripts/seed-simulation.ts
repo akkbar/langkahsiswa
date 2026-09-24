@@ -242,6 +242,7 @@ export async function seedSimulation(db: Database) {
     for (const [gi, grade] of grades.entries())
       for (const [genderIndex, gender] of ["MALE", "FEMALE"].entries()) {
         const name = `${grade.level}-${genderIndex === 0 ? "Putra" : "Putri"}`;
+        const classIndex = gi * 2 + genderIndex;
         const room = await insert("classrooms", {
           school_id: school.id,
           name: `Ruang ${name}`,
@@ -261,7 +262,7 @@ export async function seedSimulation(db: Database) {
         for (let i = 0; i < 25; i++) {
           number++;
           const code = String(number).padStart(3, "0");
-          const studentName = `${(gender === "MALE" ? male : female)[i]} ${surnames[gi * 2 + genderIndex]}`;
+          const studentName = `${(gender === "MALE" ? male : female)[i]} ${surnames[classIndex]}`;
           const email = `siswa${code}@simulasi.example.test`,
             parentEmail = `ortu${code}@simulasi.example.test`,
             parentName = `Wali ${studentName}`;

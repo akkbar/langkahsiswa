@@ -147,10 +147,11 @@ npm run db:seed:simulation
 ```
 
 Seed membuat yayasan terpisah berkode `simulasi`, satu SMP, tahun ajaran
-2026/2027, dan enam rombel: 7-Putra, 7-Putri, 8-Putra, 8-Putri, 9-Putra,
-9-Putri. Setiap rombel berisi 25 siswa; setiap siswa mempunyai satu akun
-orang tua/wali yang terhubung. Tersedia 11 guru, 11 mata pelajaran, kompetensi
-per tingkat, binding kelas, ruang kelas, dan jadwal Semester 1.
+2026/2027, dan tiga tingkatan: Kelas 7, Kelas 8, dan Kelas 9. Masing-masing
+tingkatan memiliki dua rombel: Putra dan Putri, sehingga totalnya enam rombel.
+Setiap rombel berisi 25 siswa; total 150 siswa, masing-masing dengan tepat satu
+akun orang tua/wali yang terhubung. Tersedia 11 guru, 11 mata pelajaran,
+kompetensi tingkat, binding kelas, ruang kelas, dan 210 slot jadwal Semester 1.
 
 | Akun | Email |
 | --- | --- |

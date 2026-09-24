@@ -29,6 +29,9 @@ export class AttendanceService {
     allow(actor, "attendance.read");
     uuid.parse(classId);
     date.parse(day);
+    await this.db.transaction(actor.tenant_id, async (sql) => {
+      await teachClass(sql, actor, classId);
+    });
     const session = await this.attendance.findSession(
       actor.tenant_id,
       classId,

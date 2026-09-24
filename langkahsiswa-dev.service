@@ -1,0 +1,25 @@
+[Unit]
+Description=LangkahSiswa Development Server
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=openaiot
+WorkingDirectory=/home/openaiot/langkahsiswa
+Environment="PATH=/home/openaiot/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStartPre=/usr/bin/docker compose up -d --wait postgres redis minio
+ExecStart=/home/openaiot/.local/bin/npm run dev
+ExecStop=/bin/kill -INT $MAINPID
+KillMode=control-group
+KillSignal=SIGINT
+TimeoutStopSec=20
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/openaiot/langkahsiswa/logs/systemd-dev.log
+StandardError=append:/home/openaiot/langkahsiswa/logs/systemd-dev.log
+SyslogIdentifier=langkahsiswa-dev
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import type { Actor } from "../../../../../packages/shared-types/src";
 import { AuthGuard } from "../auth/auth.guard";
 import type { AuthRequest } from "../auth/auth.types";
@@ -7,7 +7,7 @@ import { TeacherService } from "./teacher.service";
 @Controller("api/v1/teacher")
 @UseGuards(AuthGuard)
 export class TeacherController {
-  constructor(private readonly teacherService: TeacherService) {}
+  constructor(@Inject(TeacherService) private readonly teacherService: TeacherService) {}
 
   @Get("plans")
   listPlans(@Req() req: AuthRequest, @Query() query: any) {

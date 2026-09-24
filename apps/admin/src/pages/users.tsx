@@ -57,6 +57,8 @@ const areaLabels: Record<string, string> = {
   school: "Sekolah",
   site: "Situs sekolah",
   student: "Siswa",
+  teaching_log: "Jurnal mengajar",
+  teaching_plan: "Rencana mengajar",
   user: "Akun pengguna",
   wallet: "Dompet",
   website: "Website",

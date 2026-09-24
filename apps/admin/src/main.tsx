@@ -63,6 +63,12 @@ import { CbtPage } from "./pages/cbt";
 import { TimetablesPage } from "./pages/timetables";
 import { SubjectsPage } from "./pages/subjects";
 import { AcademicYearSetupPage } from "./pages/academic-year-setup";
+import { TeacherWorkPage } from "./pages/teacher-work";
+import {
+  TeacherDashboardPage,
+  TeachingLogsPage,
+  TeachingPlansPage,
+} from "./pages/teacher-workflow";
 const homeRoute = (user: Actor) => {
   const hasOperationalRole = user.roles.some(
     (role) => !["PARENT", "STUDENT", "CANTEEN_ADMIN"].includes(role),
@@ -190,7 +196,16 @@ const libraryNavigation = [
 ] as const;
 
 const groupedNavigation: Record<string, string[]> = {
-  Guru: ["grades", "assessments", "attendance"],
+  Guru: [
+    "teacher-dashboard",
+    "teaching-plans",
+    "teaching-logs",
+    "assignments",
+    "student-notes",
+    "grades",
+    "assessments",
+    "attendance",
+  ],
   Administrasi: [
     "academic-year-setup",
     "academic-years",
@@ -239,11 +254,7 @@ const unmarkedNavigationGroups = new Set([
   "Perpustakaan",
 ]);
 const unmarkedNavigationKeys = new Set(["dashboard", "portal", "cbt"]);
-const openAllNavigationKeys = new Set([
-  "dashboard",
-  "portal",
-  "cbt",
-]);
+const openAllNavigationKeys = new Set(["dashboard", "portal", "cbt"]);
 
 function initiallyOpenGroups() {
   const route = location.hash.slice(1);
@@ -355,6 +366,36 @@ function Workspace({
     };
   }, [schoolSwitcherOpen]);
   const extra = [
+    {
+      key: "teacher-dashboard",
+      title: "Dashboard Guru",
+      group: "Guru",
+      permission: "academic.read",
+    },
+    {
+      key: "teaching-plans",
+      title: "Rencana Mengajar",
+      group: "Guru",
+      permission: "teaching_plan.read",
+    },
+    {
+      key: "teaching-logs",
+      title: "Jurnal Mengajar",
+      group: "Guru",
+      permission: "teaching_log.read",
+    },
+    {
+      key: "assignments",
+      title: "Penugasan",
+      group: "Guru",
+      permission: "assignment.read",
+    },
+    {
+      key: "student-notes",
+      title: "Catatan Akademik",
+      group: "Guru",
+      permission: "student_note.read",
+    },
     {
       key: "attendance",
       title: "Absensi",
@@ -912,6 +953,16 @@ function Workspace({
             <SubjectsPage user={user} catalog={catalog} refresh={refresh} />
           ) : route === "timetables" ? (
             <TimetablesPage user={user} catalog={catalog} />
+          ) : route === "teacher-dashboard" ? (
+            <TeacherDashboardPage user={user} />
+          ) : route === "teaching-plans" ? (
+            <TeachingPlansPage user={user} catalog={catalog} />
+          ) : route === "teaching-logs" ? (
+            <TeachingLogsPage user={user} catalog={catalog} />
+          ) : route === "assignments" ? (
+            <TeacherWorkPage user={user} mode="assignments" />
+          ) : route === "student-notes" ? (
+            <TeacherWorkPage user={user} mode="notes" />
           ) : route === "assessments" ? (
             <AssessmentPlansPage user={user} refresh={refresh} />
           ) : resources[route] ? (
