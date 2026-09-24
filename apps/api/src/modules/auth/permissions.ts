@@ -13,6 +13,11 @@ export const read = [
   "notification.read",
   "site.read",
   "foundation.read",
+  "library.read",
+  "library.own",
+  "library.write",
+  "library.shelves.read",
+  "library.shelves.write",
 ];
 export const rolePermissions: Record<Role, string[]> = {
   SUPER_ADMIN: ["*"],
@@ -27,6 +32,7 @@ export const rolePermissions: Record<Role, string[]> = {
     "notification.read",
     "admission.read",
     "admission.write",
+    "admission.reregistration",
     "file.read",
     "website.read",
     "domain.read",
@@ -34,6 +40,8 @@ export const rolePermissions: Record<Role, string[]> = {
     "boarding.write",
     "library.read",
     "library.write",
+    "library.shelves.read",
+    "library.shelves.write",
     "audit.read",
   ],
   TEACHER: [
@@ -71,6 +79,7 @@ export const rolePermissions: Record<Role, string[]> = {
     "user.write",
     "admission.read",
     "admission.write",
+    "admission.reregistration",
     "event.read",
     "notification.read",
     "site.read",

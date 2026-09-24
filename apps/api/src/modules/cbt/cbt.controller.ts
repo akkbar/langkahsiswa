@@ -49,4 +49,9 @@ export class CbtController {
   async finishSession(@Param("id") id: string) {
     return this.service.finishSession(id);
   }
+
+  @Get("sessions")
+  async listSessions(@Req() req: Request) {
+    return this.service.listSessions(req);
+  }
 }

@@ -33,37 +33,37 @@ services:
       interval: 5s
       timeout: 3s
       retries: 15
-  api:
-    build:
-      context: .
-      dockerfile: infra/docker/api.Dockerfile
-    env_file: .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql://langkahsiswa:langkahsiswa_dev@postgres:5432/langkahsiswa}
-      REDIS_URL: redis://redis:6379
-      PORT: 3000
-      STORAGE_PATH: /app/storage
-      STORAGE_DRIVER: minio
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_BUCKET: ${MINIO_BUCKET:-langkahsiswa}
-    volumes: ["proof_data:/app/storage"]
-    ports: ["127.0.0.1:3000:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-      minio: { condition: service_healthy }
-  admin:
-    build:
-      context: .
-      dockerfile: infra/docker/admin.Dockerfile
-    ports: ["127.0.0.1:5173:80"]
-    depends_on: [api]
-  website:
-    build:
-      context: .
-      dockerfile: infra/docker/website.Dockerfile
-    ports: ["127.0.0.1:5174:80"]
-    depends_on: [api]
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: infra/docker/api.Dockerfile
+  #   env_file: .env
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql://langkahsiswa:langkahsiswa_dev@postgres:5432/langkahsiswa}
+  #     REDIS_URL: redis://redis:6379
+  #     PORT: 3000
+  #     STORAGE_PATH: /app/storage
+  #     STORAGE_DRIVER: minio
+  #     MINIO_ENDPOINT: http://minio:9000
+  #     MINIO_BUCKET: ${MINIO_BUCKET:-langkahsiswa}
+  #   volumes: ["proof_data:/app/storage"]
+  #   ports: ["127.0.0.1:3000:3000"]
+  #   depends_on:
+  #     postgres: { condition: service_healthy }
+  #     redis: { condition: service_healthy }
+  #     minio: { condition: service_healthy }
+  # admin:
+  #   build:
+  #     context: .
+  #     dockerfile: infra/docker/admin.Dockerfile
+  #   ports: ["127.0.0.1:5173:80"]
+  #   depends_on: [api]
+  # website:
+  #   build:
+  #     context: .
+  #     dockerfile: infra/docker/website.Dockerfile
+  #   ports: ["127.0.0.1:5174:80"]
+  #   depends_on: [api]
 volumes:
   postgres_data:
   minio_data:

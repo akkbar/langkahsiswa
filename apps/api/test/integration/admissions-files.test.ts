@@ -220,15 +220,26 @@ test("Phase 17–18: PPDB enrollment and tenant-isolated files", async () => {
         decision: "PASSED",
       });
     const student = await post(
-      `admissions/applications/${application.id}/enroll`,
-      { nis: "PPDB001", class_id: targetClass.id },
+      `admissions/applications/${application.id}/re-registration`,
+      {
+        nis: "PPDB001",
+        class_id: targetClass.id,
+        final_program: "Regular",
+        parent_confirmed: true,
+      },
     );
     await post(
-      `admissions/applications/${application.id}/enroll`,
-      { nis: "PPDB002", class_id: null },
+      `admissions/applications/${application.id}/re-registration`,
+      {
+        nis: "PPDB002",
+        class_id: null,
+        final_program: "Regular",
+        parent_confirmed: true,
+      },
       admin,
-      409,
+      201,
     );
+    assert.equal(student.student.id, student.re_registration.student_id);
     const enrolled = await db.query(
       `SELECT a.status,cs.class_id FROM applications a JOIN class_students cs
        ON cs.tenant_id=a.tenant_id AND cs.student_id=a.student_id
@@ -261,6 +272,18 @@ test("Phase 17–18: PPDB enrollment and tenant-isolated files", async () => {
       undefined,
       admin,
     );
+    const filteredQueue = await request(
+      `admissions/applications?period_id=${period.id}`,
+      "GET",
+      undefined,
+      admin,
+    );
+    assert.equal(filteredQueue.total, 2);
+    const filteredApplication = filteredQueue.data.find(
+      (row: Record<string, any>) => row.id === application.id,
+    );
+    assert.equal(filteredApplication.applicant_name, "Calon Siswa");
+    assert.equal(filteredApplication.applicant_email, "calon@example.test");
     const secondDocumentRow = refreshedQueue.data
       .find((row: Record<string, any>) => row.id === second.id)
       .documents.find(
@@ -324,7 +347,7 @@ test("Phase 17–18: PPDB enrollment and tenant-isolated files", async () => {
       category: "STUDENT_PHOTO",
       description: "Foto profil",
       entity_type: "STUDENT",
-      entity_id: student.id,
+      entity_id: student.student.id,
       file_name: "foto.png",
       mime_type: "image/png",
       data_base64: png.toString("base64"),
@@ -431,10 +454,16 @@ test("Phase 17–18: PPDB enrollment and tenant-isolated files", async () => {
         score: stage === "DOCUMENT" ? null : 90,
         notes: "Lulus",
       });
-    const familyStudent = await post(
-      `admissions/applications/${familyApplication.id}/enroll`,
-      { nis: "PPDB-FAMILY-1", class_id: null },
+    const familyRegistration = await post(
+      `admissions/applications/${familyApplication.id}/re-registration`,
+      {
+        nis: "PPDB-FAMILY-1",
+        class_id: null,
+        final_program: "Regular",
+        parent_confirmed: true,
+      },
     );
+    const familyStudent = familyRegistration.student;
     const enrolledOverview = await request(
       "family/overview",
       "GET",

@@ -22,6 +22,7 @@ import { ResourcesModule } from "./modules/resources/resources.module";
 import { RoleSettingsModule } from "./modules/role-settings/role-settings.module";
 import { SecurityModule } from "./modules/security/security.module";
 import { SitesModule } from "./modules/sites/sites.module";
+import { TeacherModule } from "./modules/teacher/teacher.module";
 import { WebsiteModule } from "./modules/website/website.module";
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { WebsiteModule } from "./modules/website/website.module";
     LibraryModule,
     SecurityModule,
     SitesModule,
+    TeacherModule,
     FoundationModule,
     AcademicYearSetupModule,
     // Generic :resource routes must follow all concrete feature routes.

@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS library_settings (
+  tenant_id UUID NOT NULL,
+  max_books INT DEFAULT 3,
+  loan_duration_days INT DEFAULT 7,
+  max_renewals INT DEFAULT 2,
+  renewal_duration_days INT DEFAULT 7,
+  max_reservations INT DEFAULT 2,
+  reservation_expiry_days INT DEFAULT 3,
+  allow_overdue_borrowing BOOLEAN DEFAULT false,
+  fine_rate_per_day NUMERIC(12,2) DEFAULT 1000.00,
+  grace_period_days INT DEFAULT 0,
+  max_fine NUMERIC(12,2) DEFAULT 50000.00,
+  lost_book_fine NUMERIC(12,2) DEFAULT 100000.00,
+  damaged_book_fine NUMERIC(12,2) DEFAULT 50000.00,
+  library_name VARCHAR(255),
+  library_code VARCHAR(50),
+  address TEXT,
+  contact VARCHAR(100),
+  operating_hours VARCHAR(100),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  PRIMARY KEY (tenant_id)
+);

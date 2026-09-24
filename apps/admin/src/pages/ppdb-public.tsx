@@ -1,35 +1,421 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
 import { ErrorBox } from "../components";
 import { ThemeToggle } from "../theme";
 
 type Row = Record<string, any>;
-const empty = {
-  period_id: "",
-  track_id: "",
-  target_grade_level_id: "",
-  name: "",
-  email: "",
-  phone: "",
-  address: "",
-  birth_date: "",
-  gender: "",
-  guardian_name: "",
-  guardian_phone: "",
+type FormField = {
+  id: string;
+  label: string;
+  field_key: string;
+  field_type: string;
+  options: { value: string; label: string }[];
+  placeholder: string;
+  help_text: string;
+  is_required: boolean;
+  is_special_key: boolean;
+  validation: Record<string, any>;
+  conditional_logic: Record<string, any>;
+  order_index: number;
 };
+type FormSection = {
+  id: string;
+  name: string;
+  description: string;
+  order_index: number;
+  is_required: boolean;
+  fields: FormField[];
+};
+type FormData = {
+  period: Row;
+  sections: FormSection[];
+};
+
+const SPECIAL_KEYS = new Set([
+  "nisn",
+  "nik",
+  "kk",
+  "kip",
+  "kks",
+  "pkt",
+  "FULL_NAME",
+  "EMAIL",
+  "PHONE",
+  "BIRTH_DATE",
+  "GENDER",
+  "ADDRESS",
+  "KK_NUMBER",
+  "KTP_NUMBER",
+]);
+
+function renderField(
+  field: FormField,
+  values: Record<string, any>,
+  onChange: (key: string, value: any) => void,
+  errors: Record<string, string>,
+  disabled: boolean,
+) {
+  const value = values[field.field_key] ?? "";
+  const error = errors[field.field_key];
+  const baseProps = {
+    id: field.field_key,
+    disabled,
+    "aria-invalid": !!error,
+    "aria-describedby": error
+      ? `${field.field_key}-error`
+      : field.help_text
+        ? `${field.field_key}-help`
+        : undefined,
+  };
+  const inputProps: React.InputHTMLAttributes<HTMLInputElement> = {
+    ...baseProps,
+    onChange: (e) => onChange(field.field_key, e.target.value),
+    onBlur: () => onChange(field.field_key, value),
+  };
+  const textareaProps: React.TextareaHTMLAttributes<HTMLTextAreaElement> = {
+    ...baseProps,
+    onChange: (e) => onChange(field.field_key, e.target.value),
+    onBlur: () => onChange(field.field_key, value),
+  };
+  const selectProps: React.SelectHTMLAttributes<HTMLSelectElement> = {
+    ...baseProps,
+    onChange: (e) => onChange(field.field_key, e.target.value),
+    onBlur: () => onChange(field.field_key, value),
+  };
+
+  switch (field.field_type) {
+    case "TEXTAREA":
+      return (
+        <label key={field.id} className="field-wrapper">
+          <span className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </span>
+          <textarea
+            {...textareaProps}
+            value={value}
+            placeholder={field.placeholder}
+            rows={3}
+          />
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </label>
+      );
+    case "EMAIL":
+      return (
+        <label key={field.id} className="field-wrapper">
+          <span className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </span>
+          <input
+            {...inputProps}
+            type="email"
+            value={value}
+            placeholder={field.placeholder}
+          />
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </label>
+      );
+    case "PHONE":
+      return (
+        <label key={field.id} className="field-wrapper">
+          <span className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </span>
+          <input
+            {...inputProps}
+            type="tel"
+            value={value}
+            placeholder={field.placeholder}
+          />
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </label>
+      );
+    case "DATE":
+      return (
+        <label key={field.id} className="field-wrapper">
+          <span className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </span>
+          <input {...inputProps} type="date" value={value} />
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </label>
+      );
+    case "SELECT":
+      return (
+        <label key={field.id} className="field-wrapper">
+          <span className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </span>
+          <select {...selectProps} value={value}>
+            <option value="">Pilih...</option>
+            {field.options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </label>
+      );
+    case "RADIO":
+      return (
+        <fieldset key={field.id} className="field-wrapper radio-group">
+          <legend className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </legend>
+          {field.options.map((opt) => (
+            <label key={opt.value} className="radio-option">
+              <input
+                type="radio"
+                name={field.field_key}
+                value={opt.value}
+                checked={value === opt.value}
+                onChange={(e) => onChange(field.field_key, e.target.value)}
+                disabled={disabled}
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </fieldset>
+      );
+    case "CHECKBOX":
+      return (
+        <fieldset key={field.id} className="field-wrapper checkbox-group">
+          <legend className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </legend>
+          {field.options.map((opt) => (
+            <label key={opt.value} className="checkbox-option">
+              <input
+                type="checkbox"
+                name={field.field_key}
+                value={opt.value}
+                checked={Array.isArray(value) && value.includes(opt.value)}
+                onChange={(e) => {
+                  const arr = Array.isArray(value) ? [...value] : [];
+                  if (e.target.checked) arr.push(opt.value);
+                  else arr.splice(arr.indexOf(opt.value), 1);
+                  onChange(field.field_key, arr);
+                }}
+                disabled={disabled}
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </fieldset>
+      );
+    case "FILE_UPLOAD":
+      return (
+        <label key={field.id} className="field-wrapper file-upload">
+          <span className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </span>
+          <input
+            type="file"
+            id={field.field_key}
+            disabled={disabled}
+            onChange={(e) =>
+              onChange(field.field_key, e.target.files?.[0] || null)
+            }
+            accept="image/png,image/jpeg,application/pdf"
+          />
+          {value instanceof File && (
+            <span className="file-name">{value.name}</span>
+          )}
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </label>
+      );
+    case "NUMBER":
+      return (
+        <label key={field.id} className="field-wrapper">
+          <span className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </span>
+          <input
+            {...inputProps}
+            type="number"
+            value={value}
+            placeholder={field.placeholder}
+          />
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </label>
+      );
+    default:
+      return (
+        <label key={field.id} className="field-wrapper">
+          <span className="field-label">
+            {field.label}{" "}
+            {field.is_required && <span className="required">*</span>}
+          </span>
+          <input
+            {...inputProps}
+            type="text"
+            value={value}
+            placeholder={field.placeholder}
+          />
+          {field.help_text && (
+            <span id={`${field.field_key}-help`} className="help-text">
+              {field.help_text}
+            </span>
+          )}
+          {error && (
+            <span id={`${field.field_key}-error`} className="error-text">
+              {error}
+            </span>
+          )}
+        </label>
+      );
+  }
+}
+
+function validateField(field: FormField, value: any): string | null {
+  if (
+    field.is_required &&
+    (!value || (Array.isArray(value) && value.length === 0))
+  ) {
+    return `${field.label} wajib diisi`;
+  }
+  if (!value) return null;
+  const val = String(value);
+  if (field.field_type === "EMAIL" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+    return "Format email tidak valid";
+  }
+  if (field.field_type === "PHONE" && !/^[\d\s\-\+\(\)]{10,}$/.test(val)) {
+    return "Format telepon tidak valid";
+  }
+  if (
+    field.validation?.min_length &&
+    val.length < field.validation.min_length
+  ) {
+    return `Minimal ${field.validation.min_length} karakter`;
+  }
+  if (
+    field.validation?.max_length &&
+    val.length > field.validation.max_length
+  ) {
+    return `Maksimal ${field.validation.max_length} karakter`;
+  }
+  if (field.validation?.pattern) {
+    try {
+      if (!new RegExp(field.validation.pattern).test(val)) {
+        return field.validation.message || "Format tidak valid";
+      }
+    } catch {}
+  }
+  return null;
+}
+
 export function PublicAdmissions() {
   const [slug, setSlug] = useState("demo");
   const [periods, setPeriods] = useState<Row[]>([]);
-  const [form, setForm] = useState(empty);
-  const [result, setResult] = useState<Row | null>(null);
+  const [formData, setFormData] = useState<FormData | null>(null);
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [values, setValues] = useState<Record<string, any>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
+  const [applicationResult, setApplicationResult] = useState<Row | null>(null);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [documentType, setDocumentType] = useState("AKTA_LAHIR");
   const [document, setDocument] = useState<File | null>(null);
-  const [message, setMessage] = useState("");
   const [tracking, setTracking] = useState({ registration: "", token: "" });
   const [tracked, setTracked] = useState<Row | null>(null);
-  async function loadPeriods() {
+
+  const loadPeriods = useCallback(async () => {
     setBusy(true);
     setError("");
     try {
@@ -37,13 +423,203 @@ export function PublicAdmissions() {
       setPeriods(data.data);
       if (!data.data.length)
         setError("Belum ada periode PPDB yang dibuka oleh sekolah ini.");
-    } catch (error) {
-      setError((error as Error).message);
+    } catch (e) {
+      setError((e as Error).message);
     } finally {
       setBusy(false);
     }
-  }
-  const selectedPeriod = periods.find((row) => row.id === form.period_id);
+  }, [slug]);
+
+  const loadForm = useCallback(
+    async (periodId: string) => {
+      setBusy(true);
+      setError("");
+      try {
+        const data = await api(
+          `public/admissions/${slug.trim()}/form/${periodId}`,
+        );
+        setFormData(data);
+        setActiveSectionIndex(0);
+        setValues({});
+        setErrors({});
+        setSubmitted({});
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [slug],
+  );
+
+  useEffect(() => {
+    if (formData && formData.sections.length > activeSectionIndex) {
+      const section = formData.sections[activeSectionIndex];
+      const sectionErrors: Record<string, string> = {};
+      for (const field of section.fields) {
+        const err = validateField(field, values[field.field_key]);
+        if (err) sectionErrors[field.field_key] = err;
+      }
+      setErrors(sectionErrors);
+    }
+  }, [values, formData, activeSectionIndex]);
+
+  const handleChange = (key: string, value: any) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    const field = formData?.sections
+      .flatMap((s) => s.fields)
+      .find((f) => f.field_key === key);
+    if (field) {
+      const err = validateField(field, value);
+      setErrors((prev) => {
+        const next = { ...prev };
+        if (err) next[key] = err;
+        else delete next[key];
+        return next;
+      });
+    }
+  };
+
+  const validateSection = (section: FormSection): boolean => {
+    let valid = true;
+    const sectionErrors: Record<string, string> = {};
+    for (const field of section.fields) {
+      const err = validateField(field, values[field.field_key]);
+      if (err) {
+        valid = false;
+        sectionErrors[field.field_key] = err;
+      }
+    }
+    setErrors(sectionErrors);
+    return valid;
+  };
+
+  const handleNext = async () => {
+    if (!formData) return;
+    const section = formData.sections[activeSectionIndex];
+    if (!validateSection(section)) return;
+    setSubmitted((prev) => ({ ...prev, [section.id]: true }));
+    if (activeSectionIndex < formData.sections.length - 1) {
+      setActiveSectionIndex((i) => i + 1);
+    } else {
+      await handleSubmit();
+    }
+  };
+
+  const handlePrev = () => {
+    if (activeSectionIndex > 0) setActiveSectionIndex((i) => i - 1);
+  };
+
+  const handleSubmit = async () => {
+    if (!formData) return;
+    for (const section of formData.sections) {
+      if (!validateSection(section)) return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api(`public/admissions/${slug.trim()}/applications`, {
+        method: "POST",
+        body: JSON.stringify({
+          period_id: formData.period.id,
+          track_id: values.track_id || null,
+          target_grade_level_id: values.target_grade_level_id || null,
+          name: values.name || values.FULL_NAME || values.nama_lengkap || "",
+          email: values.email || values.EMAIL || "",
+          phone: values.phone || values.PHONE || "",
+          address: values.address || values.ADDRESS || "",
+          birth_date: values.birth_date || values.BIRTH_DATE || "",
+          gender: values.gender || values.GENDER || "",
+          guardian_name: values.guardian_name || "",
+          guardian_phone: values.guardian_phone || "",
+        }),
+      });
+      setApplicationResult(res);
+      setApplicationId(res.id);
+      setAccessToken(res.access_token);
+      setMessage(
+        "Pendaftaran berhasil dikirim. Simpan nomor dan kode akses di bawah.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDocumentUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!document) {
+      setError("Pilih dokumen terlebih dahulu.");
+      return;
+    }
+    if (document.size > 5 * 1024 * 1024) {
+      setError("Ukuran dokumen maksimal 5 MB.");
+      return;
+    }
+    if (!applicationId || !accessToken) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setBusy(true);
+      setError("");
+      try {
+        await api(
+          `public/admissions/${slug.trim()}/applications/${applicationId}/documents`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              access_token: accessToken,
+              document_type: documentType,
+              file_name: document.name,
+              mime_type: document.type,
+              data_base64: String(reader.result).split(",")[1],
+            }),
+          },
+        );
+        setDocument(null);
+        setMessage("Dokumen berhasil diunggah dan menunggu verifikasi.");
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy(false);
+      }
+    };
+    reader.readAsDataURL(document);
+  };
+
+  const handleTrack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    setTracked(null);
+    try {
+      const data = await api(
+        `public/admissions/${slug.trim()}/applications/${encodeURIComponent(tracking.registration.trim())}/status`,
+        {
+          method: "POST",
+          body: JSON.stringify({ access_token: tracking.token.trim() }),
+        },
+      );
+      setTracked(data);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData(null);
+    setApplicationResult(null);
+    setApplicationId(null);
+    setAccessToken(null);
+    setValues({});
+    setErrors({});
+    setSubmitted({});
+    setActiveSectionIndex(0);
+    setMessage("");
+  };
+
   return (
     <main className="public-page">
       <header className="public-header">
@@ -72,25 +648,7 @@ export function PublicAdmissions() {
         {message && <div className="notice success">{message}</div>}
         <details className="card padded tracking-card">
           <summary>Sudah mendaftar? Periksa status</summary>
-          <form
-            className="sub-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setBusy(true);
-              setError("");
-              setTracked(null);
-              void api(
-                `public/admissions/${slug.trim()}/applications/${encodeURIComponent(tracking.registration.trim())}/status`,
-                {
-                  method: "POST",
-                  body: JSON.stringify({ access_token: tracking.token.trim() }),
-                },
-              )
-                .then(setTracked)
-                .catch((error) => setError(error.message))
-                .finally(() => setBusy(false));
-            }}
-          >
+          <form className="sub-form" onSubmit={handleTrack}>
             <div className="form-grid">
               <label>
                 Nomor pendaftaran
@@ -98,11 +656,8 @@ export function PublicAdmissions() {
                   required
                   placeholder="PPDB-2026-…"
                   value={tracking.registration}
-                  onChange={(event) =>
-                    setTracking({
-                      ...tracking,
-                      registration: event.target.value,
-                    })
+                  onChange={(e) =>
+                    setTracking({ ...tracking, registration: e.target.value })
                   }
                 />
               </label>
@@ -112,8 +667,8 @@ export function PublicAdmissions() {
                   required
                   minLength={32}
                   value={tracking.token}
-                  onChange={(event) =>
-                    setTracking({ ...tracking, token: event.target.value })
+                  onChange={(e) =>
+                    setTracking({ ...tracking, token: e.target.value })
                   }
                 />
               </label>
@@ -124,11 +679,11 @@ export function PublicAdmissions() {
             <div className="tracking-result">
               <strong>{tracked.registration_number}</strong>
               <span>Status: {tracked.status}</span>
-              <span>{tracked.documents.length} dokumen tercatat</span>
+              <span>{tracked.documents?.length ?? 0} dokumen tercatat</span>
             </div>
           )}
         </details>
-        {!result ? (
+        {!formData && !applicationResult ? (
           <>
             <section className="card padded stack-form">
               <h2>Temukan sekolah</h2>
@@ -138,17 +693,14 @@ export function PublicAdmissions() {
                   <input
                     required
                     value={slug}
-                    onChange={(event) => {
-                      setSlug(event.target.value);
+                    onChange={(e) => {
+                      setSlug(e.target.value);
                       setPeriods([]);
-                      setForm(empty);
+                      setFormData(null);
                     }}
                   />
                 </label>
-                <button
-                  disabled={busy || !slug.trim()}
-                  onClick={() => void loadPeriods()}
-                >
+                <button disabled={busy || !slug.trim()} onClick={loadPeriods}>
                   {busy ? "Mencari…" : "Lihat periode"}
                 </button>
               </div>
@@ -156,47 +708,23 @@ export function PublicAdmissions() {
             {!!periods.length && (
               <form
                 className="card padded stack-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setBusy(true);
-                  setError("");
-                  void api(`public/admissions/${slug.trim()}/applications`, {
-                    method: "POST",
-                    body: JSON.stringify({
-                      ...form,
-                      track_id: form.track_id || null,
-                      email: form.email || null,
-                      phone: form.phone || null,
-                      address: form.address || null,
-                      birth_date: form.birth_date || null,
-                      gender: form.gender || null,
-                    }),
-                  })
-                    .then((data) => {
-                      setResult(data);
-                      setMessage(
-                        "Pendaftaran berhasil dikirim. Simpan nomor dan kode akses di bawah.",
-                      );
-                    })
-                    .catch((error) => setError(error.message))
-                    .finally(() => setBusy(false));
+                onSubmit={(e) => {
+                  e.preventDefault();
                 }}
               >
-                <h2>Data pendaftaran</h2>
+                <h2>Pilih periode</h2>
                 <div className="form-grid">
                   <label>
-                    Periode
+                    Periode PPDB
                     <select
                       required
-                      value={form.period_id}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          period_id: event.target.value,
-                          track_id: "",
-                          target_grade_level_id: "",
-                        })
-                      }
+                      value={""}
+                      onChange={(e) => {
+                        const period = periods.find(
+                          (p) => p.id === e.target.value,
+                        );
+                        if (period) loadForm(period.id);
+                      }}
                     >
                       <option value="">Pilih periode</option>
                       {periods.map((row) => (
@@ -206,190 +734,73 @@ export function PublicAdmissions() {
                       ))}
                     </select>
                   </label>
-                  <label>
-                    Jalur PPDB
-                    <select
-                      required={!!selectedPeriod?.tracks?.length}
-                      value={form.track_id}
-                      onChange={(event) =>
-                        setForm({ ...form, track_id: event.target.value })
-                      }
-                    >
-                      <option value="">Pilih jalur</option>
-                      {(selectedPeriod?.tracks || []).map((row: Row) => (
-                        <option key={row.id} value={row.id}>
-                          {row.name} · Rp
-                          {Number(row.cost).toLocaleString("id-ID")}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Tingkat tujuan
-                    <select
-                      required
-                      value={form.target_grade_level_id}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          target_grade_level_id: event.target.value,
-                        })
-                      }
-                    >
-                      <option value="">Pilih tingkat</option>
-                      {(selectedPeriod?.grade_levels || []).map((row: Row) => (
-                        <option key={row.id} value={row.id}>
-                          {row.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Nama calon siswa
-                    <input
-                      required
-                      value={form.name}
-                      onChange={(event) =>
-                        setForm({ ...form, name: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Tanggal lahir
-                    <input
-                      type="date"
-                      value={form.birth_date}
-                      onChange={(event) =>
-                        setForm({ ...form, birth_date: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Jenis kelamin
-                    <select
-                      value={form.gender}
-                      onChange={(event) =>
-                        setForm({ ...form, gender: event.target.value })
-                      }
-                    >
-                      <option value="">Pilih</option>
-                      <option value="MALE">Laki-laki</option>
-                      <option value="FEMALE">Perempuan</option>
-                    </select>
-                  </label>
-                  <label>
-                    Email
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(event) =>
-                        setForm({ ...form, email: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Telepon
-                    <input
-                      value={form.phone}
-                      onChange={(event) =>
-                        setForm({ ...form, phone: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Nama wali
-                    <input
-                      required
-                      value={form.guardian_name}
-                      onChange={(event) =>
-                        setForm({ ...form, guardian_name: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Telepon wali
-                    <input
-                      required
-                      value={form.guardian_phone}
-                      onChange={(event) =>
-                        setForm({ ...form, guardian_phone: event.target.value })
-                      }
-                    />
-                  </label>
                 </div>
-                <label>
-                  Alamat
-                  <textarea
-                    rows={3}
-                    value={form.address}
-                    onChange={(event) =>
-                      setForm({ ...form, address: event.target.value })
-                    }
-                  />
-                </label>
-                <button className="primary" disabled={busy}>
-                  {busy ? "Mengirim…" : "Kirim pendaftaran"}
-                </button>
               </form>
             )}
           </>
-        ) : (
+        ) : formData && !applicationResult ? (
+          <form
+            className="card padded stack-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleNext();
+            }}
+          >
+            <div className="form-progress">
+              {formData.sections.map((s, i) => (
+                <div
+                  key={s.id}
+                  className={`step ${submitted[s.id] ? "done" : i === activeSectionIndex ? "active" : ""}`}
+                >
+                  <span className="step-number">{i + 1}</span>
+                  <span className="step-label">{s.name}</span>
+                </div>
+              ))}
+            </div>
+            <h2>{formData.sections[activeSectionIndex]?.name || "Formulir"}</h2>
+            {formData.sections[activeSectionIndex]?.description && (
+              <p className="muted">
+                {formData.sections[activeSectionIndex].description}
+              </p>
+            )}
+            <div className="form-grid">
+              {formData.sections[activeSectionIndex].fields.map((field) =>
+                renderField(field, values, handleChange, errors, busy),
+              )}
+            </div>
+            <div className="form-actions">
+              {activeSectionIndex > 0 && (
+                <button type="button" onClick={handlePrev}>
+                  Kembali
+                </button>
+              )}
+              <button type="submit" className="primary" disabled={busy}>
+                {activeSectionIndex === formData.sections.length - 1
+                  ? "Kirim pendaftaran"
+                  : "Lanjut"}
+                {busy && "…"}
+              </button>
+            </div>
+          </form>
+        ) : applicationResult ? (
           <section className="card padded stack-form">
             <span className="eyebrow">PENDAFTARAN TERKIRIM</span>
-            <h2>{result.registration_number}</h2>
+            <h2>{applicationResult.registration_number}</h2>
             <p>
               Simpan kode akses berikut untuk memeriksa status atau mengunggah
               dokumen:
             </p>
-            <code className="access-code">{result.access_token}</code>
-            <form
-              className="sub-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!document) {
-                  setError("Pilih dokumen terlebih dahulu.");
-                  return;
-                }
-                if (document.size > 5 * 1024 * 1024) {
-                  setError("Ukuran dokumen maksimal 5 MB.");
-                  return;
-                }
-                const reader = new FileReader();
-                reader.onload = () => {
-                  setBusy(true);
-                  setError("");
-                  void api(
-                    `public/admissions/${slug.trim()}/applications/${result.id}/documents`,
-                    {
-                      method: "POST",
-                      body: JSON.stringify({
-                        access_token: result.access_token,
-                        document_type: documentType,
-                        file_name: document.name,
-                        mime_type: document.type,
-                        data_base64: String(reader.result).split(",")[1],
-                      }),
-                    },
-                  )
-                    .then(() => {
-                      setDocument(null);
-                      setMessage(
-                        "Dokumen berhasil diunggah dan menunggu verifikasi.",
-                      );
-                    })
-                    .catch((error) => setError(error.message))
-                    .finally(() => setBusy(false));
-                };
-                reader.readAsDataURL(document);
-              }}
-            >
+            <code className="access-code">
+              {applicationResult.access_token}
+            </code>
+            <form className="sub-form" onSubmit={handleDocumentUpload}>
               <h3>Unggah dokumen</h3>
               <div className="form-grid">
                 <label>
                   Jenis dokumen
                   <select
                     value={documentType}
-                    onChange={(event) => setDocumentType(event.target.value)}
+                    onChange={(e) => setDocumentType(e.target.value)}
                   >
                     <option value="AKTA_LAHIR">Akta lahir</option>
                     <option value="KARTU_KELUARGA">Kartu keluarga</option>
@@ -402,25 +813,15 @@ export function PublicAdmissions() {
                   <input
                     type="file"
                     accept="image/png,image/jpeg,application/pdf"
-                    onChange={(event) =>
-                      setDocument(event.target.files?.[0] || null)
-                    }
+                    onChange={(e) => setDocument(e.target.files?.[0] || null)}
                   />
                 </label>
               </div>
               <button disabled={busy}>Unggah dokumen</button>
             </form>
-            <button
-              onClick={() => {
-                setResult(null);
-                setForm(empty);
-                setMessage("");
-              }}
-            >
-              Buat pendaftaran lain
-            </button>
+            <button onClick={resetForm}>Buat pendaftaran lain</button>
           </section>
-        )}
+        ) : null}
       </section>
     </main>
   );

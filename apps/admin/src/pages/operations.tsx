@@ -1,7 +1,7 @@
 import { SortableTable } from "../sortable-table";
 import React, { useContext, useEffect, useState } from "react";
 import type { Actor } from "../../../../packages/shared-types/src";
-import { api, send } from "../api";
+import { api, send, token } from "../api";
 import { can, Empty, ErrorBox, type Catalog } from "../components";
 import { dateText, money, PageHeading, Status } from "./finance";
 
@@ -15,6 +15,7 @@ type Field = {
   rowLabel?: (row: Row) => string;
   nullable?: boolean;
   nullValue?: boolean;
+  required?: boolean;
 };
 const TableSearchContext = React.createContext("");
 
@@ -62,6 +63,7 @@ function SimpleForm({
   button = "Simpan",
   drawer = false,
   onSaved,
+  initialValues,
 }: {
   title: string;
   fields: Field[];
@@ -70,6 +72,7 @@ function SimpleForm({
   button?: string;
   drawer?: boolean;
   onSaved?: () => void;
+  initialValues?: Row;
 }) {
   const defaults = () =>
     Object.fromEntries(
@@ -78,7 +81,7 @@ function SimpleForm({
         field.nullable ? "" : field.type === "number" ? "0" : "",
       ]),
     );
-  const [form, setForm] = useState<Row>(defaults);
+  const [form, setForm] = useState<Row>(initialValues || defaults());
   return (
     <form
       className={
@@ -2060,7 +2063,9 @@ export function LibraryPage({
     copies: [],
     borrowings: [],
     penalties: [],
+    shelves: [],
   });
+  const [selectedBook, setSelectedBook] = useState<Row | null>(null);
   const [tab, setTab] = useState("sirkulasi");
   const load = async () => setData(await api("library/overview"));
   const state = useOperation(load);
@@ -2109,6 +2114,12 @@ export function LibraryPage({
           onClick={() => setTab("catalog")}
         >
           Katalog
+        </button>
+        <button
+          className={tab === "ekspemplar" ? "primary" : ""}
+          onClick={() => setTab("ekspemplar")}
+        >
+          Eksemplar
         </button>
         <button
           className={tab === "penalty" ? "primary" : ""}
@@ -2170,9 +2181,37 @@ export function LibraryPage({
                 { key: "copies", label: "Eksemplar" },
                 { key: "available", label: "Tersedia" },
               ]}
+              actions={(row) => (
+                <button
+                  type="button"
+                  className="secondary text-xs"
+                  onClick={() => setSelectedBook(row)}
+                >
+                  Detail & Eksemplar ({row.copies || 0})
+                </button>
+              )}
             />
           </section>
+          {selectedBook && (
+            <BookDetailDrawer
+              book={selectedBook}
+              data={data}
+              user={user}
+              state={state}
+              load={load}
+              onClose={() => setSelectedBook(null)}
+            />
+          )}
         </>
+      )}
+      {tab === "ekspemplar" && (
+        <LibraryEksemplarPage
+          user={user}
+          catalog={catalog}
+          data={data}
+          state={state}
+          load={load}
+        />
       )}
       {tab === "sirkulasi" && (
         <>
@@ -2339,6 +2378,773 @@ export function LibraryPage({
   );
 }
 
+export function CopyStatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    AVAILABLE: "green",
+    BORROWED: "blue",
+    RESERVED: "orange",
+    MAINTENANCE: "purple",
+    LOST: "red",
+    DAMAGED: "red",
+  };
+  const labels: Record<string, string> = {
+    AVAILABLE: "Tersedia",
+    BORROWED: "Dipinjam",
+    RESERVED: "Direservasi",
+    MAINTENANCE: "Perbaikan",
+    LOST: "Hilang",
+    DAMAGED: "Rusak",
+  };
+  return (
+    <span className={`badge ${colors[status] || ""}`}>
+      {labels[status] || status}
+    </span>
+  );
+}
+
+export function CopyConditionBadge({ condition }: { condition: string }) {
+  const colors: Record<string, string> = {
+    GOOD: "green",
+    FAIR: "orange",
+    DAMAGED: "red",
+    LOST: "gray",
+  };
+  const labels: Record<string, string> = {
+    GOOD: "Baik",
+    FAIR: "Layak Pakai",
+    DAMAGED: "Rusak",
+    LOST: "Hilang",
+  };
+  return (
+    <span className={`badge ${colors[condition] || ""}`}>
+      {labels[condition] || condition}
+    </span>
+  );
+}
+
+function LibraryEksemplarPage({
+  user,
+  catalog,
+  data,
+  state,
+  load,
+}: {
+  user: Actor;
+  catalog: Catalog;
+  data: Row;
+  state: ReturnType<typeof useOperation>;
+  load: () => Promise<void>;
+}) {
+  const write = can(user, "library.write");
+  const [editor, setEditor] = useState<Row | null>(null);
+  const [view, setView] = useState<Row | null>(null);
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "",
+    condition: "",
+  });
+  const [pagination, setPagination] = useState({ page: 1, limit: 20 });
+
+  const filteredCopies = data.copies
+    .filter((r: Row) => {
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        return (
+          r.barcode?.toLowerCase().includes(s) ||
+          r.title?.toLowerCase().includes(s) ||
+          r.isbn?.toLowerCase().includes(s)
+        );
+      }
+      return true;
+    })
+    .filter((r: Row) => !filters.status || r.status === filters.status)
+    .filter(
+      (r: Row) => !filters.condition || r.condition === filters.condition,
+    );
+
+  const openCreate = () => {
+    setEditor({
+      book_id: "",
+      shelf_id: "",
+      acquisition_date: new Date().toISOString().split("T")[0],
+      condition: "GOOD",
+      status: "AVAILABLE",
+      barcode: "",
+      price: 0,
+      notes: "",
+    });
+  };
+
+  const openEdit = (row: Row) => {
+    setEditor({ ...row });
+  };
+
+  const openView = (row: Row) => {
+    setView(row);
+  };
+
+  const handleSave = async (value: Row) => {
+    if (editor?.id) {
+      await send(`library/copies/${editor.id}`, value, "PATCH");
+    } else {
+      await send("library/copies", value);
+    }
+    await load();
+    setEditor(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Hapus eksemplar ini?")) return;
+    await send(`library/copies/${id}`, {}, "DELETE");
+    await load();
+  };
+
+  const handleBulkGenerate = async () => {
+    const count = prompt("Berapa eksemplar yang ingin dibuat?");
+    if (!count) return;
+    const bookId = prompt("Book ID untuk eksemplar baru:");
+    if (!bookId) return;
+    await send("library/book-copies/bulk", {
+      book_id: bookId,
+      count: parseInt(count),
+    });
+    await load();
+  };
+
+  const handleImport = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    await send("library/book-copies/import", formData);
+    await load();
+  };
+
+  const handleExport = async () => {
+    const res = await fetch(`/api/v1/library/book-copies/export`, {
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `eksemplar-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const statusBadge = (status: string) => {
+    return <CopyStatusBadge status={status} />;
+  };
+
+  const conditionBadge = (condition: string) => {
+    return <CopyConditionBadge condition={condition} />;
+  };
+
+  return (
+    <>
+      <PageHeading
+        eyebrow="PERPUSTAKAAN / EKSEMPLAR"
+        title="Kelola Eksemplar Buku"
+        description="CRUD eksemplar, barcode bulk generate, import/export CSV."
+      />
+      <Notices state={state} />
+
+      <section className="card">
+        <div className="toolbar">
+          <strong>Daftar Eksemplar</strong>
+          <div style={{ display: "flex", gap: "0.5rem", marginLeft: "auto" }}>
+            {write && (
+              <>
+                <button onClick={openCreate}>+ Tambah Eksemplar</button>
+                <button onClick={handleBulkGenerate}>
+                  Bulk Generate Barcode
+                </button>
+                <button onClick={handleExport}>Export CSV</button>
+              </>
+            )}
+          </div>
+        </div>
+        <div
+          style={{
+            padding: "1rem",
+            display: "flex",
+            gap: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Cari barcode, judul, ISBN..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            style={{ flex: 1, minWidth: "200px" }}
+          />
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          >
+            <option value="">Semua Status</option>
+            <option value="AVAILABLE">Tersedia</option>
+            <option value="BORROWED">Dipinjam</option>
+            <option value="RESERVED">Direservasi</option>
+            <option value="MAINTENANCE">Perbaikan</option>
+            <option value="LOST">Hilang</option>
+            <option value="DAMAGED">Rusak</option>
+          </select>
+          <select
+            value={filters.condition}
+            onChange={(e) =>
+              setFilters({ ...filters, condition: e.target.value })
+            }
+          >
+            <option value="">Semua Kondisi</option>
+            <option value="GOOD">Baik</option>
+            <option value="FAIR">Layak Pakai</option>
+            <option value="DAMAGED">Rusak</option>
+            <option value="LOST">Hilang</option>
+          </select>
+          {write && (
+            <>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) =>
+                  e.target.files?.[0] && handleImport(e.target.files[0])
+                }
+                style={{ display: "none" }}
+                id="import-file"
+              />
+              <label htmlFor="import-file" style={{ cursor: "pointer" }}>
+                <button>Import CSV</button>
+              </label>
+            </>
+          )}
+        </div>
+        <div className="table-wrap">
+          <SortableTable>
+            <thead>
+              <tr>
+                <th>Barcode</th>
+                <th>Judul Buku</th>
+                <th>ISBN</th>
+                <th>Rak</th>
+                <th>Tgl Perolehan</th>
+                <th>Kondisi</th>
+                <th>Status</th>
+                <th>Harga</th>
+                {write && <th>Aksi</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCopies.length === 0 ? (
+                <tr>
+                  <td colSpan={write ? 9 : 8} className="empty">
+                    Belum ada eksemplar.
+                  </td>
+                </tr>
+              ) : (
+                filteredCopies.map((row: Row) => (
+                  <tr key={row.id}>
+                    <td>{row.barcode}</td>
+                    <td>{row.title}</td>
+                    <td>{row.isbn}</td>
+                    <td>{row.shelf_code || "—"}</td>
+                    <td>{dateText(row.acquisition_date)}</td>
+                    <td>{conditionBadge(row.condition)}</td>
+                    <td>{statusBadge(row.status)}</td>
+                    <td>{money(row.price)}</td>
+                    {write && (
+                      <td>
+                        <button onClick={() => openView(row)}>Lihat</button>
+                        <button onClick={() => openEdit(row)}>Edit</button>
+                        <button
+                          onClick={() => handleDelete(row.id)}
+                          style={{ color: "var(--danger)" }}
+                        >
+                          Hapus
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </SortableTable>
+        </div>
+      </section>
+
+      {editor && (
+        <EksemplarDrawer
+          editor={editor}
+          books={data.books}
+          shelves={data.shelves}
+          busy={state.busy}
+          onClose={() => setEditor(null)}
+          onSave={handleSave}
+        />
+      )}
+
+      {view && (
+        <EksemplarViewDrawer copy={view} onClose={() => setView(null)} />
+      )}
+    </>
+  );
+}
+
+function EksemplarDrawer({
+  editor,
+  books,
+  shelves,
+  busy,
+  onClose,
+  onSave,
+}: {
+  editor: Row;
+  books: Row[];
+  shelves: Row[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (value: Row) => Promise<void>;
+}) {
+  const isEdit = !!editor.id;
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) onClose();
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [busy, onClose]);
+  return (
+    <div className="school-drawer-layer">
+      <button
+        className="school-drawer-backdrop"
+        aria-label="Tutup form eksemplar"
+        disabled={busy}
+        onClick={onClose}
+      />
+      <aside
+        className="school-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="eksemplar-drawer-title"
+      >
+        <div className="school-drawer-header">
+          <div>
+            <span className="eyebrow">PERPUSTAKAAN</span>
+            <h2 id="eksemplar-drawer-title">
+              {isEdit ? "Edit Eksemplar" : "Tambah Eksemplar"}
+            </h2>
+          </div>
+          <button aria-label="Tutup" disabled={busy} onClick={onClose}>
+            {"\u00d7"}
+          </button>
+        </div>
+        <SimpleForm
+          title=""
+          busy={busy}
+          submit={onSave}
+          drawer
+          fields={[
+            {
+              key: "book_id",
+              label: "Buku",
+              rows: books,
+              rowLabel: (r) => `${r.title} · ${r.author} (${r.isbn})`,
+              required: true,
+            },
+            {
+              key: "shelf_id",
+              label: "Rak",
+              rows: shelves,
+              rowLabel: (r) => `${r.code} · ${r.name}`,
+              nullable: true,
+            },
+            {
+              key: "acquisition_date",
+              label: "Tanggal Perolehan",
+              type: "date",
+              required: true,
+            },
+            {
+              key: "condition",
+              label: "Kondisi",
+              type: "select",
+              options: [
+                { value: "GOOD", label: "Baik" },
+                { value: "FAIR", label: "Layak Pakai" },
+                { value: "DAMAGED", label: "Rusak" },
+                { value: "LOST", label: "Hilang" },
+              ],
+              required: true,
+            },
+            {
+              key: "status",
+              label: "Status",
+              type: "select",
+              options: [
+                { value: "AVAILABLE", label: "Tersedia" },
+                { value: "BORROWED", label: "Dipinjam" },
+                { value: "RESERVED", label: "Direservasi" },
+                { value: "MAINTENANCE", label: "Perbaikan" },
+                { value: "LOST", label: "Hilang" },
+                { value: "DAMAGED", label: "Rusak" },
+              ],
+              required: true,
+            },
+            { key: "barcode", label: "Barcode", nullable: true },
+            { key: "price", label: "Harga", type: "number", nullable: true },
+            {
+              key: "notes",
+              label: "Catatan",
+              type: "textarea",
+              nullable: true,
+            },
+          ]}
+          initialValues={editor}
+        />
+      </aside>
+    </div>
+  );
+}
+
+function EksemplarViewDrawer({
+  copy,
+  onClose,
+}: {
+  copy: Row;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [onClose]);
+  return (
+    <div className="school-drawer-layer">
+      <button
+        className="school-drawer-backdrop"
+        aria-label="Tutup detail eksemplar"
+        onClick={onClose}
+      />
+      <aside
+        className="school-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="eksemplar-view-title"
+      >
+        <div className="school-drawer-header">
+          <div>
+            <span className="eyebrow">PERPUSTAKAAN</span>
+            <h2 id="eksemplar-view-title">Eksemplar: {copy.barcode}</h2>
+          </div>
+          <button aria-label="Tutup" onClick={onClose}>
+            {"\u00d7"}
+          </button>
+        </div>
+        <div style={{ display: "grid", gap: "1rem", padding: "1rem" }}>
+          <div>
+            <strong>Barcode:</strong> {copy.barcode}
+          </div>
+          <div>
+            <strong>Buku:</strong> {copy.title} · {copy.author}
+          </div>
+          <div>
+            <strong>ISBN:</strong> {copy.isbn}
+          </div>
+          <div>
+            <strong>Rak:</strong> {copy.shelf_code || "—"}
+          </div>
+          <div>
+            <strong>Tanggal Perolehan:</strong>{" "}
+            {dateText(copy.acquisition_date)}
+          </div>
+          <div>
+            <strong>Kondisi:</strong>{" "}
+            <CopyConditionBadge condition={copy.condition} />
+          </div>
+          <div>
+            <strong>Status:</strong> <CopyStatusBadge status={copy.status} />
+          </div>
+          <div>
+            <strong>Harga:</strong> {money(copy.price)}
+          </div>
+          <div>
+            <strong>Catatan:</strong> {copy.notes || "—"}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+export function BookDetailDrawer({
+  book,
+  data,
+  user,
+  state,
+  load,
+  onClose,
+}: {
+  book: Row;
+  data: Row;
+  user: Actor;
+  state: ReturnType<typeof useOperation>;
+  load: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const write = can(user, "library.write");
+  const [editor, setEditor] = useState<Row | null>(null);
+  const [view, setView] = useState<Row | null>(null);
+
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !editor && !view) onClose();
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [editor, view, onClose]);
+
+  const bookCopies = (data.copies || []).filter(
+    (c: Row) => c.book_id === book.id,
+  );
+
+  const openCreate = () => {
+    setEditor({
+      book_id: book.id,
+      shelf_id: "",
+      acquisition_date: new Date().toISOString().split("T")[0],
+      condition: "GOOD",
+      status: "AVAILABLE",
+      barcode: "",
+      price: 0,
+      notes: "",
+    });
+  };
+
+  const openEdit = (row: Row) => {
+    setEditor({ ...row });
+  };
+
+  const handleSave = async (value: Row) => {
+    if (editor?.id) {
+      await send(`library/copies/${editor.id}`, value, "PATCH");
+    } else {
+      await send("library/copies", { ...value, book_id: book.id });
+    }
+    await load();
+    setEditor(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Hapus eksemplar ini?")) return;
+    await send(`library/copies/${id}`, {}, "DELETE");
+    await load();
+  };
+
+  return (
+    <div className="school-drawer-layer">
+      <button
+        className="school-drawer-backdrop"
+        aria-label="Tutup detail buku"
+        onClick={onClose}
+      />
+      <aside
+        className="school-drawer wide-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="book-detail-title"
+        style={{ maxWidth: "800px", width: "100%" }}
+      >
+        <div className="school-drawer-header">
+          <div>
+            <span className="eyebrow">DETAIL BUKU & EKSEMPLAR</span>
+            <h2 id="book-detail-title">{book.title}</h2>
+          </div>
+          <button aria-label="Tutup" onClick={onClose}>
+            {"\u00d7"}
+          </button>
+        </div>
+
+        <div style={{ padding: "1.25rem", display: "grid", gap: "1.25rem" }}>
+          <div
+            className="card"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: "0.75rem",
+              padding: "1rem",
+              background: "var(--bg-subtle, #f9fafb)",
+            }}
+          >
+            <div>
+              <span className="muted" style={{ fontSize: "0.85rem" }}>
+                Penulis
+              </span>
+              <div>
+                <strong>{book.author || "—"}</strong>
+              </div>
+            </div>
+            <div>
+              <span className="muted" style={{ fontSize: "0.85rem" }}>
+                ISBN
+              </span>
+              <div>
+                <strong>{book.isbn || "—"}</strong>
+              </div>
+            </div>
+            <div>
+              <span className="muted" style={{ fontSize: "0.85rem" }}>
+                Penerbit
+              </span>
+              <div>
+                <strong>{book.publisher || "—"}</strong>
+              </div>
+            </div>
+            <div>
+              <span className="muted" style={{ fontSize: "0.85rem" }}>
+                Tahun Terbit
+              </span>
+              <div>
+                <strong>{book.publication_year || "—"}</strong>
+              </div>
+            </div>
+            <div>
+              <span className="muted" style={{ fontSize: "0.85rem" }}>
+                Kategori
+              </span>
+              <div>
+                <strong>{book.category || "—"}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="metric-grid"
+            style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
+          >
+            <div className="metric">
+              <span className="muted">Total Eksemplar</span>
+              <strong>{bookCopies.length}</strong>
+            </div>
+            <div className="metric">
+              <span className="muted">Tersedia</span>
+              <strong>
+                {bookCopies.filter((c: Row) => c.status === "AVAILABLE").length}
+              </strong>
+            </div>
+            <div className="metric accent">
+              <span className="muted">Dipinjam</span>
+              <strong>
+                {bookCopies.filter((c: Row) => c.status === "BORROWED").length}
+              </strong>
+            </div>
+          </div>
+
+          <section className="card" style={{ marginTop: "0.5rem" }}>
+            <div className="toolbar">
+              <strong>Daftar Eksemplar</strong>
+              {write && (
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={openCreate}
+                  style={{ marginLeft: "auto" }}
+                >
+                  + Tambah Eksemplar
+                </button>
+              )}
+            </div>
+            <div className="table-wrap">
+              <SortableTable>
+                <thead>
+                  <tr>
+                    <th>Barcode</th>
+                    <th>Rak</th>
+                    <th>Tgl Perolehan</th>
+                    <th>Kondisi</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bookCopies.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="empty">
+                        Belum ada eksemplar untuk buku ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    bookCopies.map((row: Row) => (
+                      <tr key={row.id}>
+                        <td>
+                          <strong>{row.barcode}</strong>
+                        </td>
+                        <td>{row.shelf_code || "—"}</td>
+                        <td>{dateText(row.acquisition_date)}</td>
+                        <td>
+                          <CopyConditionBadge condition={row.condition} />
+                        </td>
+                        <td>
+                          <CopyStatusBadge status={row.status} />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="secondary text-xs"
+                            onClick={() => setView(row)}
+                          >
+                            Lihat
+                          </button>
+                          {write && (
+                            <>
+                              <button
+                                type="button"
+                                className="secondary text-xs"
+                                onClick={() => openEdit(row)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary text-xs"
+                                onClick={() => handleDelete(row.id)}
+                                style={{ color: "var(--danger, #dc2626)" }}
+                              >
+                                Hapus
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </SortableTable>
+            </div>
+          </section>
+        </div>
+      </aside>
+
+      {editor && (
+        <EksemplarDrawer
+          editor={editor}
+          books={data.books}
+          shelves={data.shelves}
+          busy={state.busy}
+          onClose={() => setEditor(null)}
+          onSave={handleSave}
+        />
+      )}
+
+      {view && (
+        <EksemplarViewDrawer copy={view} onClose={() => setView(null)} />
+      )}
+    </div>
+  );
+}
+
 export function SecurityPage({ user }: { user: Actor }) {
   const [tab, setTab] = useState("audit");
   const [audit, setAudit] = useState<Row[]>([]);
@@ -2479,3 +3285,3267 @@ export function SecurityPage({ user }: { user: Actor }) {
     </>
   );
 }
+
+// ============================================================
+// LIBRARY PLACEHOLDER PAGES (Phase 1 - Foundation)
+// ============================================================
+
+function LibraryPlaceholderPage({
+  user,
+  catalog,
+  title,
+  description,
+  section,
+}: {
+  user: Actor;
+  catalog: Catalog;
+  title: string;
+  description: string;
+  section: string;
+}) {
+  const write = can(user, "library.write");
+  return (
+    <>
+      <PageHeading
+        eyebrow={`PERPUSTAKAAN / ${section.toUpperCase()}`}
+        title={title}
+        description={description}
+      />
+      <section className="card">
+        <div className="toolbar">
+          <strong>{title}</strong>
+        </div>
+        <div
+          style={{
+            padding: "3rem",
+            textAlign: "center",
+            color: "var(--muted)",
+          }}
+        >
+          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📚</div>
+          <h3 style={{ marginBottom: "0.5rem" }}>Halaman dalam pengembangan</h3>
+          <p>Fitur {title.toLowerCase()} akan segera diimplementasikan.</p>
+          {write && (
+            <p style={{ marginTop: "1rem", fontSize: "0.875rem" }}>
+              Anda memiliki izin menulis (library.write) untuk modul ini.
+            </p>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+export function LibraryDashboardPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [data, setData] = useState<Row>({
+    overview: null,
+    statistics: null,
+    activities: [],
+  });
+  const load = async () => {
+    const [ov, st, ac] = await Promise.all([
+      api("library/overview"),
+      api("library/statistics"),
+      api("library/activities"),
+    ]);
+    setData({
+      overview: ov,
+      statistics: st,
+      activities: ac.data || [],
+    });
+  };
+  const state = useOperation(load);
+  const write = can(user, "library.write");
+
+  const booksCount = (data.overview?.books || []).length;
+  const copiesCount = (data.overview?.copies || []).length;
+  const availableCount = (data.overview?.copies || []).filter(
+    (c: Row) => c.status === "AVAILABLE",
+  ).length;
+  const borrowedCount = (data.overview?.copies || []).filter(
+    (c: Row) => c.status === "BORROWED",
+  ).length;
+  const overdueCount = (data.overview?.borrowings || []).filter(
+    (r: Row) => !r.returned_at && r.overdue,
+  ).length;
+  const unpaidPenalties = (data.overview?.penalties || []).filter(
+    (p: Row) => p.status === "UNPAID",
+  ).reduce((acc: number, p: Row) => acc + Number(p.amount), 0);
+
+  return (
+    <div style={{ display: "grid", gap: "1.5rem" }}>
+      <div className="toolbar" style={{ alignItems: "flex-start" }}>
+        <div>
+          <span className="eyebrow">PERPUSTAKAAN</span>
+          <h2>Dashboard Perpustakaan</h2>
+          <p className="muted">
+            Ringkasan statistik koleksi, sirkulasi, dan aktivitas terbaru.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          {write && (
+            <>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  location.hash = "library-sirkulasi-peminjaman";
+                }}
+              >
+                + Peminjaman Baru
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => state.run(load)}
+            disabled={state.busy}
+          >
+            {state.busy ? "Memuat…" : "Muat Ulang"}
+          </button>
+        </div>
+      </div>
+
+      <div
+        className="metric-grid"
+        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}
+      >
+        <div className="metric">
+          <span className="muted">Judul Buku</span>
+          <strong>{booksCount}</strong>
+        </div>
+        <div className="metric">
+          <span className="muted">Total Eksemplar</span>
+          <strong>{copiesCount}</strong>
+        </div>
+        <div className="metric">
+          <span className="muted">Tersedia</span>
+          <strong style={{ color: "var(--success, #16a34a)" }}>
+            {availableCount}
+          </strong>
+        </div>
+        <div className="metric">
+          <span className="muted">Dipinjam</span>
+          <strong style={{ color: "var(--primary, #2563eb)" }}>
+            {borrowedCount}
+          </strong>
+        </div>
+        <div className="metric accent">
+          <span className="muted">Terlambat (Overdue)</span>
+          <strong style={{ color: "var(--danger, #dc2626)" }}>
+            {overdueCount}
+          </strong>
+        </div>
+        <div className="metric">
+          <span className="muted">Denda Belum Lunas</span>
+          <strong>{money(unpaidPenalties)}</strong>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
+          gap: "1.5rem",
+        }}
+      >
+        <section className="card">
+          <div className="toolbar">
+            <strong>Buku Paling Sering Dipinjam</strong>
+          </div>
+          <div className="table-wrap">
+            <SortableTable>
+              <thead>
+                <tr>
+                  <th>Judul Buku</th>
+                  <th>Penulis</th>
+                  <th>Total Pinjam</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(!data.statistics?.most_borrowed_books ||
+                  data.statistics.most_borrowed_books.length === 0) ? (
+                  <tr>
+                    <td colSpan={3} className="empty">
+                      Belum ada data peminjaman.
+                    </td>
+                  </tr>
+                ) : (
+                  data.statistics.most_borrowed_books.map(
+                    (row: Row, idx: number) => (
+                      <tr key={idx}>
+                        <td>
+                          <strong>{row.title}</strong>
+                        </td>
+                        <td>{row.author || "—"}</td>
+                        <td>{row.borrowings_count}x</td>
+                      </tr>
+                    ),
+                  )
+                )}
+              </tbody>
+            </SortableTable>
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="toolbar">
+            <strong>Distribusi Status Eksemplar</strong>
+          </div>
+          <div className="table-wrap">
+            <SortableTable>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(!data.statistics?.book_status_distribution ||
+                  data.statistics.book_status_distribution.length === 0) ? (
+                  <tr>
+                    <td colSpan={2} className="empty">
+                      Belum ada data eksemplar.
+                    </td>
+                  </tr>
+                ) : (
+                  data.statistics.book_status_distribution.map(
+                    (row: Row, idx: number) => (
+                      <tr key={idx}>
+                        <td>
+                          <CopyStatusBadge status={row.status} />
+                        </td>
+                        <td>
+                          <strong>{row.count}</strong>
+                        </td>
+                      </tr>
+                    ),
+                  )
+                )}
+              </tbody>
+            </SortableTable>
+          </div>
+        </section>
+      </div>
+
+      <section className="card">
+        <div className="toolbar">
+          <strong>Aktivitas Sirkulasi Terbaru</strong>
+        </div>
+        <div className="table-wrap">
+          <SortableTable>
+            <thead>
+              <tr>
+                <th>Waktu</th>
+                <th>Siswa</th>
+                <th>Buku</th>
+                <th>Barcode</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.activities.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="empty">
+                    Belum ada aktivitas sirkulasi.
+                  </td>
+                </tr>
+              ) : (
+                data.activities.map((row: Row) => (
+                  <tr key={row.id}>
+                    <td>{dateText(row.timestamp)}</td>
+                    <td>
+                      <strong>{row.student_name}</strong>
+                    </td>
+                    <td>{row.book_title}</td>
+                    <td>{row.barcode}</td>
+                    <td>
+                      {row.status === "RETURNED" ? (
+                        <span className="badge green">Dikembalikan</span>
+                      ) : row.status === "OVERDUE" ? (
+                        <span className="badge red">Terlambat</span>
+                      ) : (
+                        <span className="badge blue">Dipinjam</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </SortableTable>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function LibraryKoleksiBukuPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  return <LibraryPage user={user} catalog={catalog} />;
+}
+
+export function LibraryKoleksiKategoriPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [categories, setCategories] = useState<{ name: string; book_count: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const json = await api("library/categories");
+      setCategories(json.data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const filtered = categories.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="table-page">
+      <div className="table-header">
+        <div>
+          <h2>Kategori Buku</h2>
+          <p className="text-muted">Daftar kategori / klasifikasi buku perpustakaan.</p>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-secondary" onClick={loadData}>
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+      <div className="filter-toolbar">
+        <input
+          type="text"
+          placeholder="Cari kategori..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="form-control"
+        />
+      </div>
+      <div className="table-container">
+        {loading ? (
+          <div className="p-4 text-center">Memuat data...</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-4 text-center text-muted">Belum ada data kategori.</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Nama Kategori</th>
+                <th>Jumlah Judul Buku</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((cat, idx) => (
+                <tr key={idx}>
+                  <td><strong>{cat.name}</strong></td>
+                  <td><span className="badge badge-info">{cat.book_count} buku</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function LibraryKoleksiPenulisPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [authors, setAuthors] = useState<{ name: string; book_count: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const json = await api("library/authors");
+      setAuthors(json.data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const filtered = authors.filter((a) =>
+    a.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="table-page">
+      <div className="table-header">
+        <div>
+          <h2>Penulis Buku</h2>
+          <p className="text-muted">Daftar penulis / pengarang buku perpustakaan.</p>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-secondary" onClick={loadData}>
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+      <div className="filter-toolbar">
+        <input
+          type="text"
+          placeholder="Cari penulis..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="form-control"
+        />
+      </div>
+      <div className="table-container">
+        {loading ? (
+          <div className="p-4 text-center">Memuat data...</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-4 text-center text-muted">Belum ada data penulis.</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Nama Penulis</th>
+                <th>Jumlah Judul Buku</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((aut, idx) => (
+                <tr key={idx}>
+                  <td><strong>{aut.name}</strong></td>
+                  <td><span className="badge badge-info">{aut.book_count} buku</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function LibraryKoleksiPenerbitPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [publishers, setPublishers] = useState<{ name: string; book_count: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const json = await api("library/publishers");
+      setPublishers(json.data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const filtered = publishers.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="table-page">
+      <div className="table-header">
+        <div>
+          <h2>Penerbit Buku</h2>
+          <p className="text-muted">Daftar penerbit buku perpustakaan.</p>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-secondary" onClick={loadData}>
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+      <div className="filter-toolbar">
+        <input
+          type="text"
+          placeholder="Cari penerbit..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="form-control"
+        />
+      </div>
+      <div className="table-container">
+        {loading ? (
+          <div className="p-4 text-center">Memuat data...</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-4 text-center text-muted">Belum ada data penerbit.</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Nama Penerbit</th>
+                <th>Jumlah Judul Buku</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((pub, idx) => (
+                <tr key={idx}>
+                  <td><strong>{pub.name}</strong></td>
+                  <td><span className="badge badge-info">{pub.book_count} buku</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function LibraryKoleksiRakPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [shelves, setShelves] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ code: "", name: "", description: "" });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const json = await api("library/shelves");
+      setShelves(json.data || json || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      await send("library/shelves", form);
+      setSuccess("Rak berhasil ditambahkan!");
+      setShowModal(false);
+      setForm({ code: "", name: "", description: "" });
+      loadData();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Hapus rak ini?")) return;
+    setError("");
+    try {
+      await api(`library/shelves/${id}`, { method: "DELETE" });
+      loadData();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const filtered = shelves.filter(
+    (s) =>
+      s.code.toLowerCase().includes(search.toLowerCase()) ||
+      s.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="table-page">
+      <div className="table-header">
+        <div>
+          <h2>Rak Buku</h2>
+          <p className="text-muted">Kelola lokasi rak / penyimpanan fisik buku.</p>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-secondary" onClick={loadData}>
+            🔄 Refresh
+          </button>
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            + Tambah Rak
+          </button>
+        </div>
+      </div>
+      {error && <div className="alert alert-danger mb-3">{error}</div>}
+      {success && <div className="alert alert-success mb-3">{success}</div>}
+
+      <div className="filter-toolbar">
+        <input
+          type="text"
+          placeholder="Cari kode atau nama rak..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="form-control"
+        />
+      </div>
+
+      <div className="table-container">
+        {loading ? (
+          <div className="p-4 text-center">Memuat data...</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-4 text-center text-muted">Belum ada data rak.</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Kode Rak</th>
+                <th>Nama Rak</th>
+                <th>Deskripsi</th>
+                <th>Jumlah Eksemplar</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((shelf) => (
+                <tr key={shelf.id}>
+                  <td><code>{shelf.code}</code></td>
+                  <td><strong>{shelf.name}</strong></td>
+                  <td>{shelf.description || "-"}</td>
+                  <td><span className="badge badge-info">{shelf.copy_count || 0} eksemplar</span></td>
+                  <td>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => handleDelete(shelf.id)}
+                    >
+                      Hapus
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {showModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <h3>Tambah Rak Buku</h3>
+            <form onSubmit={handleCreate}>
+              <div className="form-group mb-3">
+                <label>Kode Rak *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: RAK-A2"
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  className="form-control"
+                />
+              </div>
+              <div className="form-group mb-3">
+                <label>Nama Rak *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Rak Referensi"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="form-control"
+                />
+              </div>
+              <div className="form-group mb-3">
+                <label>Deskripsi</label>
+                <textarea
+                  placeholder="Keterangan lokasi atau jenis buku..."
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  className="form-control"
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowModal(false)}
+                >
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Simpan Rak
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LibrarySirkulasiPeminjamanPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [borrowings, setBorrowings] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [studentId, setStudentId] = useState("");
+  const [copyId, setCopyId] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [students, setStudents] = useState<Row[]>([]);
+  const [copies, setCopies] = useState<Row[]>([]);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: Row[] }>("library/borrowings");
+      setBorrowings(res.data);
+      const studs = await api<{ data: Row[] }>("students");
+      setStudents(studs.data || []);
+      const cps = await api<{ data: Row[] }>("library/copies");
+      setCopies(cps.data || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await send("library/borrowings", {
+        student_id: studentId,
+        copy_id: copyId,
+        due_date: dueDate,
+      });
+      setDrawerOpen(false);
+      setStudentId("");
+      setCopyId("");
+      setDueDate("");
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const query = search.trim().toLocaleLowerCase("id-ID");
+  const filteredBorrowings = borrowings.filter((b) =>
+    [b.student_name, b.student_nis, b.book_title, b.barcode, b.status]
+      .join(" ")
+      .toLocaleLowerCase("id-ID")
+      .includes(query)
+  );
+
+  return (
+    <>
+      <div className="page-title">
+        <div>
+          <span className="eyebrow">SIRKULASI</span>
+          <h1>Peminjaman Buku</h1>
+        </div>
+        <div className="page-actions">
+          <div className="filter-toolbar">
+            <input
+              aria-label="Cari peminjaman"
+              placeholder="Cari peminjaman…"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {can(user, "library.write") && (
+            <button className="primary" onClick={() => setDrawerOpen(true)}>
+              + Peminjaman Baru
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="alert error">{error}</div>}
+
+      <div className="table-container">
+        {loading ? (
+          <p style={{ padding: "1rem" }}>Memuat data peminjaman...</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Peminjam</th>
+                <th>Buku & Barcode</th>
+                <th>Tanggal Pinjam</th>
+                <th>Jatuh Tempo</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBorrowings.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center" }}>Tidak ada data peminjaman.</td>
+                </tr>
+              ) : (
+                filteredBorrowings.map((b) => (
+                  <tr key={b.id}>
+                    <td>
+                      <strong>{b.student_name}</strong>
+                      <br />
+                      <small>{b.student_nis}</small>
+                    </td>
+                    <td>
+                      <strong>{b.book_title}</strong>
+                      <br />
+                      <small>Barcode: {b.barcode}</small>
+                    </td>
+                    <td>{new Date(b.borrowed_at).toLocaleDateString()}</td>
+                    <td>{b.due_date}</td>
+                    <td>
+                      <span className={`badge ${b.returned_at ? "success" : new Date(b.due_date) < new Date() ? "danger" : "warning"}`}>
+                        {b.returned_at ? "RETURNED" : new Date(b.due_date) < new Date() ? "OVERDUE" : "BORROWED"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {drawerOpen && (
+        <div className="school-drawer-layer">
+          <button
+            className="school-drawer-backdrop"
+            aria-label="Tutup form peminjaman"
+            disabled={busy}
+            onClick={() => setDrawerOpen(false)}
+          />
+          <aside
+            className="school-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="peminjaman-drawer-title"
+          >
+            <div className="school-drawer-header">
+              <div>
+                <span className="eyebrow">SIRKULASI</span>
+                <h2 id="peminjaman-drawer-title">Peminjaman Baru</h2>
+              </div>
+              <button aria-label="Tutup" disabled={busy} onClick={() => setDrawerOpen(false)}>
+                {"\u00d7"}
+              </button>
+            </div>
+            <form onSubmit={handleSave} className="form-stack" style={{ padding: "1.5rem" }}>
+              <div className="form-group">
+                <label>Siswa (Peminjam)</label>
+                <select value={studentId} onChange={(e) => setStudentId(e.target.value)} required disabled={busy}>
+                  <option value="">-- Pilih Siswa --</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.nis || "Tanpa NIS"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Eksemplar Buku (Barcode)</label>
+                <select value={copyId} onChange={(e) => setCopyId(e.target.value)} required disabled={busy}>
+                  <option value="">-- Pilih Eksemplar Tersedia --</option>
+                  {copies.filter((c) => c.status === "AVAILABLE").map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.barcode} - {c.book_title || "Buku"} ({c.condition})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Tanggal Jatuh Tempo</label>
+                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required disabled={busy} />
+              </div>
+              <div className="form-actions" style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
+                <button type="submit" className="primary" disabled={busy}>Simpan Peminjaman</button>
+                <button type="button" className="secondary" disabled={busy} onClick={() => setDrawerOpen(false)}>Batal</button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function LibrarySirkulasiPengembalianPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [borrowings, setBorrowings] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedBorrowingId, setSelectedBorrowingId] = useState("");
+  const [condition, setCondition] = useState("GOOD");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: Row[] }>("library/borrowings?status=BORROWED");
+      setBorrowings(res.data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function handleReturn(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedBorrowingId) return;
+    setBusy(true);
+    setError("");
+    try {
+      await send(`library/borrowings/${selectedBorrowingId}/return`, {
+        condition,
+      });
+      setDrawerOpen(false);
+      setSelectedBorrowingId("");
+      setCondition("GOOD");
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const query = search.trim().toLocaleLowerCase("id-ID");
+  const filteredBorrowings = borrowings.filter((b) =>
+    [b.student_name, b.student_nis, b.book_title, b.barcode]
+      .join(" ")
+      .toLocaleLowerCase("id-ID")
+      .includes(query)
+  );
+
+  return (
+    <>
+      <div className="page-title">
+        <div>
+          <span className="eyebrow">SIRKULASI</span>
+          <h1>Pengembalian Buku</h1>
+        </div>
+        <div className="page-actions">
+          <div className="filter-toolbar">
+            <input
+              aria-label="Cari pengembalian"
+              placeholder="Cari pengembalian…"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {can(user, "library.write") && (
+            <button className="primary" onClick={() => setDrawerOpen(true)}>
+              + Proses Pengembalian
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="alert error">{error}</div>}
+
+      <div className="table-container">
+        {loading ? (
+          <p style={{ padding: "1rem" }}>Memuat daftar peminjaman aktif...</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Peminjam</th>
+                <th>Buku & Barcode</th>
+                <th>Tanggal Pinjam</th>
+                <th>Jatuh Tempo</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBorrowings.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center" }}>Tidak ada peminjaman aktif yang perlu dikembalikan.</td>
+                </tr>
+              ) : (
+                filteredBorrowings.map((b) => (
+                  <tr key={b.id}>
+                    <td>
+                      <strong>{b.student_name}</strong>
+                      <br />
+                      <small>{b.student_nis}</small>
+                    </td>
+                    <td>
+                      <strong>{b.book_title}</strong>
+                      <br />
+                      <small>Barcode: {b.barcode}</small>
+                    </td>
+                    <td>{new Date(b.borrowed_at).toLocaleDateString()}</td>
+                    <td>{b.due_date}</td>
+                    <td>
+                      <span className={`badge ${new Date(b.due_date) < new Date() ? "danger" : "warning"}`}>
+                        {new Date(b.due_date) < new Date() ? "OVERDUE" : "BORROWED"}
+                      </span>
+                    </td>
+                    <td>
+                      {can(user, "library.write") && (
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setSelectedBorrowingId(b.id);
+                            setDrawerOpen(true);
+                          }}
+                        >
+                          Proses Kembali
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {drawerOpen && (
+        <div className="school-drawer-layer">
+          <button
+            className="school-drawer-backdrop"
+            aria-label="Tutup form pengembalian"
+            disabled={busy}
+            onClick={() => setDrawerOpen(false)}
+          />
+          <aside
+            className="school-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pengembalian-drawer-title"
+          >
+            <div className="school-drawer-header">
+              <div>
+                <span className="eyebrow">SIRKULASI</span>
+                <h2 id="pengembalian-drawer-title">Proses Pengembalian Buku</h2>
+              </div>
+              <button aria-label="Tutup" disabled={busy} onClick={() => setDrawerOpen(false)}>
+                {"\u00d7"}
+              </button>
+            </div>
+            <form onSubmit={handleReturn} className="form-stack" style={{ padding: "1.5rem" }}>
+              <div className="form-group">
+                <label>Pilih Transaksi Peminjaman Aktif</label>
+                <select
+                  value={selectedBorrowingId}
+                  onChange={(e) => setSelectedBorrowingId(e.target.value)}
+                  required
+                  disabled={busy}
+                >
+                  <option value="">-- Pilih Buku / Peminjam --</option>
+                  {borrowings.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.student_name} - {b.book_title} ({b.barcode}) [Due: {b.due_date}]
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Kondisi Buku Saat Dikembalikan</label>
+                <select
+                  value={condition}
+                  onChange={(e) => setCondition(e.target.value)}
+                  required
+                  disabled={busy}
+                >
+                  <option value="GOOD">Baik (Good)</option>
+                  <option value="DAMAGED">Rusak (Damaged)</option>
+                  <option value="LOST">Hilang (Lost)</option>
+                </select>
+              </div>
+              <div className="form-actions" style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
+                <button type="submit" className="primary" disabled={busy}>Konfirmasi Pengembalian</button>
+                <button type="button" className="secondary" disabled={busy} onClick={() => setDrawerOpen(false)}>Batal</button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function LibrarySirkulasiPerpanjanganPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [borrowings, setBorrowings] = useState<Row[]>([]);
+  const [renewals, setRenewals] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedBorrowingId, setSelectedBorrowingId] = useState("");
+  const [days, setDays] = useState(7);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: Row[] }>("library/borrowings?status=BORROWED");
+      setBorrowings(res.data || []);
+      const renRes = await api<{ data: Row[] }>("library/renewals");
+      setRenewals(renRes.data || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function handleRenew(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedBorrowingId) return;
+    setBusy(true);
+    setError("");
+    try {
+      await send(`library/borrowings/${selectedBorrowingId}/renew`, {
+        days: Number(days),
+      });
+      setDrawerOpen(false);
+      setSelectedBorrowingId("");
+      setDays(7);
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const selectedBorrowing = borrowings.find((b) => b.id === selectedBorrowingId);
+  const calculatedNewDueDate = selectedBorrowing
+    ? (() => {
+        const d = new Date(selectedBorrowing.due_date);
+        d.setDate(d.getDate() + Number(days));
+        return d.toISOString().slice(0, 10);
+      })()
+    : "—";
+
+  const query = search.trim().toLocaleLowerCase("id-ID");
+  const filteredBorrowings = borrowings.filter((b) =>
+    [b.student_name, b.student_nis, b.book_title, b.barcode]
+      .join(" ")
+      .toLocaleLowerCase("id-ID")
+      .includes(query)
+  );
+
+  return (
+    <>
+      <div className="page-title">
+        <div>
+          <span className="eyebrow">SIRKULASI</span>
+          <h1>Perpanjangan Peminjaman</h1>
+        </div>
+        <div className="page-actions">
+          <div className="filter-toolbar">
+            <input
+              aria-label="Cari peminjaman"
+              placeholder="Cari peminjaman…"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {can(user, "library.write") && (
+            <button className="primary" onClick={() => setDrawerOpen(true)}>
+              + Perpanjang Masa Pinjam
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="alert error">{error}</div>}
+
+      <div className="table-container">
+        {loading ? (
+          <p style={{ padding: "1rem" }}>Memuat daftar peminjaman aktif...</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Peminjam</th>
+                <th>Buku & Barcode</th>
+                <th>Tanggal Pinjam</th>
+                <th>Jatuh Tempo Saat Ini</th>
+                <th>Perpanjangan</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBorrowings.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center" }}>
+                    Tidak ada peminjaman aktif yang tersedia untuk diperpanjang.
+                  </td>
+                </tr>
+              ) : (
+                filteredBorrowings.map((b) => {
+                  const bRenewals = renewals.filter((r) => r.borrowing_id === b.id);
+                  const count = bRenewals.length;
+                  return (
+                    <tr key={b.id}>
+                      <td>
+                        <strong>{b.student_name}</strong>
+                        <br />
+                        <small>{b.student_nis}</small>
+                      </td>
+                      <td>
+                        <strong>{b.book_title}</strong>
+                        <br />
+                        <small>Barcode: {b.barcode}</small>
+                      </td>
+                      <td>{new Date(b.borrowed_at).toLocaleDateString()}</td>
+                      <td>{b.due_date}</td>
+                      <td>
+                        <span className={`badge ${count >= 2 ? "danger" : "default"}`}>
+                          {count} / 2 kali
+                        </span>
+                      </td>
+                      <td>
+                        {can(user, "library.write") && (
+                          <button
+                            className="secondary"
+                            disabled={count >= 2}
+                            onClick={() => {
+                              setSelectedBorrowingId(b.id);
+                              setDrawerOpen(true);
+                            }}
+                          >
+                            {count >= 2 ? "Batas Tercapai" : "Perpanjang"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {drawerOpen && (
+        <div className="school-drawer-layer">
+          <button
+            className="school-drawer-backdrop"
+            aria-label="Tutup form perpanjangan"
+            disabled={busy}
+            onClick={() => setDrawerOpen(false)}
+          />
+          <aside
+            className="school-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="perpanjangan-drawer-title"
+          >
+            <div className="school-drawer-header">
+              <div>
+                <span className="eyebrow">SIRKULASI</span>
+                <h2 id="perpanjangan-drawer-title">Perpanjang Masa Pinjam</h2>
+              </div>
+              <button aria-label="Tutup" disabled={busy} onClick={() => setDrawerOpen(false)}>
+                {"\u00d7"}
+              </button>
+            </div>
+            <form onSubmit={handleRenew} className="form-stack" style={{ padding: "1.5rem" }}>
+              <div className="form-group">
+                <label>Pilih Transaksi Peminjaman</label>
+                <select
+                  value={selectedBorrowingId}
+                  onChange={(e) => setSelectedBorrowingId(e.target.value)}
+                  required
+                  disabled={busy}
+                >
+                  <option value="">-- Pilih Buku / Siswa --</option>
+                  {borrowings.map((b) => {
+                    const count = renewals.filter((r) => r.borrowing_id === b.id).length;
+                    return (
+                      <option key={b.id} value={b.id} disabled={count >= 2}>
+                        {b.student_name} - {b.book_title} ({b.barcode}) [Due: {b.due_date}] {count >= 2 ? "(Max)" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {selectedBorrowing && (
+                <div style={{ background: "var(--bg-muted, #f3f4f6)", padding: "1rem", borderRadius: "0.5rem", marginBottom: "1rem" }}>
+                  <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem" }}>
+                    <strong>Jatuh tempo saat ini:</strong> {selectedBorrowing.due_date}
+                  </p>
+                  <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--primary-color, #2563eb)" }}>
+                    <strong>Estimasi jatuh tempo baru:</strong> {calculatedNewDueDate}
+                  </p>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>Jumlah Hari Tambahan</label>
+                <select
+                  value={days}
+                  onChange={(e) => setDays(Number(e.target.value))}
+                  required
+                  disabled={busy}
+                >
+                  <option value={3}>3 Hari</option>
+                  <option value={7}>7 Hari (1 Minggu)</option>
+                  <option value={14}>14 Hari (2 Minggu)</option>
+                </select>
+              </div>
+
+              <div className="form-actions" style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
+                <button type="submit" className="primary" disabled={busy}>Konfirmasi Perpanjangan</button>
+                <button type="button" className="secondary" disabled={busy} onClick={() => setDrawerOpen(false)}>Batal</button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function LibrarySirkulasiReservasiPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [reservations, setReservations] = useState<Row[]>([]);
+  const [books, setBooks] = useState<Row[]>([]);
+  const [students, setStudents] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [bookId, setBookId] = useState("");
+  const [studentId, setStudentId] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: Row[] }>("library/reservations");
+      setReservations(res.data || []);
+      const bks = await api<{ data: Row[] }>("library/books");
+      setBooks(bks.data || []);
+      const studs = await api<{ data: Row[] }>("students");
+      setStudents(studs.data || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!bookId || !studentId) return;
+    setBusy(true);
+    setError("");
+    try {
+      await send("library/reservations", {
+        book_id: bookId,
+        student_id: studentId,
+      });
+      setDrawerOpen(false);
+      setBookId("");
+      setStudentId("");
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCancel(id: string) {
+    if (!confirm("Batalkan reservasi ini?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await send(`library/reservations/${id}/cancel`, {});
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const query = search.trim().toLocaleLowerCase("id-ID");
+  const filteredReservations = reservations.filter((r) =>
+    [r.student_name, r.student_nis, r.book_title, r.book_author, r.status]
+      .join(" ")
+      .toLocaleLowerCase("id-ID")
+      .includes(query)
+  );
+
+  return (
+    <>
+      <div className="page-title">
+        <div>
+          <span className="eyebrow">SIRKULASI</span>
+          <h1>Reservasi Buku</h1>
+        </div>
+        <div className="page-actions">
+          <div className="filter-toolbar">
+            <input
+              aria-label="Cari reservasi"
+              placeholder="Cari reservasi…"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {can(user, "library.write") && (
+            <button className="primary" onClick={() => setDrawerOpen(true)}>
+              + Reservasi Baru
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="alert error">{error}</div>}
+
+      <div className="table-container">
+        {loading ? (
+          <p style={{ padding: "1rem" }}>Memuat daftar reservasi...</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Antrean</th>
+                <th>Pemesan</th>
+                <th>Judul Buku</th>
+                <th>Status</th>
+                <th>Eksemplar / Batas Ambil</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredReservations.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center" }}>
+                    Belum ada data reservasi.
+                  </td>
+                </tr>
+              ) : (
+                filteredReservations.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <span className="badge default">#{r.queue_position}</span>
+                    </td>
+                    <td>
+                      <strong>{r.student_name}</strong>
+                      <br />
+                      <small>{r.student_nis}</small>
+                    </td>
+                    <td>
+                      <strong>{r.book_title}</strong>
+                      <br />
+                      <small>{r.book_author}</small>
+                    </td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          r.status === "READY"
+                            ? "success"
+                            : r.status === "WAITING"
+                            ? "warning"
+                            : r.status === "CANCELLED"
+                            ? "danger"
+                            : "default"
+                        }`}
+                      >
+                        {r.status}
+                      </span>
+                    </td>
+                    <td>
+                      {r.assigned_barcode ? (
+                        <>
+                          <strong>Barcode: {r.assigned_barcode}</strong>
+                          <br />
+                          <small>Batas: {r.expiry_date || "—"}</small>
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td>
+                      {can(user, "library.write") && (r.status === "WAITING" || r.status === "READY") && (
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() => void handleCancel(r.id)}
+                        >
+                          Batalkan
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {drawerOpen && (
+        <div className="school-drawer-layer">
+          <button
+            className="school-drawer-backdrop"
+            aria-label="Tutup form reservasi"
+            disabled={busy}
+            onClick={() => setDrawerOpen(false)}
+          />
+          <aside
+            className="school-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservasi-drawer-title"
+          >
+            <div className="school-drawer-header">
+              <div>
+                <span className="eyebrow">SIRKULASI</span>
+                <h2 id="reservasi-drawer-title">Buat Reservasi Baru</h2>
+              </div>
+              <button aria-label="Tutup" disabled={busy} onClick={() => setDrawerOpen(false)}>
+                {"\u00d7"}
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="form-stack" style={{ padding: "1.5rem" }}>
+              <div className="form-group">
+                <label>Pilih Siswa</label>
+                <select
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  required
+                  disabled={busy}
+                >
+                  <option value="">-- Pilih Siswa --</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.nis || "Tanpa NIS"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Pilih Judul Buku</label>
+                <select
+                  value={bookId}
+                  onChange={(e) => setBookId(e.target.value)}
+                  required
+                  disabled={busy}
+                >
+                  <option value="">-- Pilih Buku --</option>
+                  {books.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.title} ({b.author})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-actions" style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
+                <button type="submit" className="primary" disabled={busy}>Simpan Reservasi</button>
+                <button type="button" className="secondary" disabled={busy} onClick={() => setDrawerOpen(false)}>Batal</button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function LibraryInventarisStokPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [stocks, setStocks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: any[] }>("library/inventory/stock");
+      setStocks(res.data || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const filtered = stocks.filter(
+    (s) =>
+      s.title?.toLowerCase().includes(search.toLowerCase()) ||
+      s.author?.toLowerCase().includes(search.toLowerCase()) ||
+      s.isbn?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="table-page space-y-6">
+      <div className="table-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="eyebrow text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Inventaris Perpustakaan
+          </p>
+          <h1 className="page-title text-2xl font-bold text-slate-900">Stok Buku</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Pantau ketersediaan total dan status eksemplar per judul buku.
+          </p>
+        </div>
+        <div className="page-actions flex items-center gap-3">
+          <button
+            onClick={() => void load()}
+            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+          >
+            Muat Ulang
+          </button>
+        </div>
+      </div>
+
+      <div className="filter-toolbar bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <input
+          type="text"
+          placeholder="Cari judul, penulis, atau ISBN..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full sm:w-80 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <div className="text-sm text-slate-500">Total Judul: {filtered.length}</div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="table-container bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3">ISBN / Judul</th>
+                <th className="px-6 py-3">Penulis / Penerbit</th>
+                <th className="px-6 py-3 text-center">Total</th>
+                <th className="px-6 py-3 text-center">Tersedia</th>
+                <th className="px-6 py-3 text-center">Dipinjam</th>
+                <th className="px-6 py-3 text-center">Reservasi</th>
+                <th className="px-6 py-3 text-center">Hilang/Rusak</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                    Memuat data stok...
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                    Tidak ada data stok buku ditemukan.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((s) => (
+                  <tr key={s.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-900">{s.title}</div>
+                      <div className="text-xs text-slate-500">{s.isbn || "-"}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-slate-900">{s.author}</div>
+                      <div className="text-xs text-slate-500">{s.publisher || "-"}</div>
+                    </td>
+                    <td className="px-6 py-4 text-center font-semibold text-slate-900">
+                      {s.total_copies}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                        {s.available_copies}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {s.borrowed_copies}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        {s.reserved_copies}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-800">
+                        {(s.lost_copies || 0) + (s.damaged_copies || 0)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LibraryInventarisOpnamePage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [opnames, setOpnames] = useState<any[]>([]);
+  const [shelves, setShelves] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [shelfId, setShelfId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: any[] }>("library/inventory/opnames");
+      setOpnames(res.data || []);
+      const sh = await api<{ data: any[] }>("library/shelves");
+      setShelves(sh.data || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await send("library/inventory/opnames", {
+        title,
+        shelf_id: shelfId || undefined,
+        notes: notes || undefined,
+      });
+      setTitle("");
+      setShelfId("");
+      setNotes("");
+      setDrawerOpen(false);
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="table-page space-y-6">
+      <div className="table-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="eyebrow text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Inventaris Perpustakaan
+          </p>
+          <h1 className="page-title text-2xl font-bold text-slate-900">Stock Opname</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Lakukan audit dan pencatatan inventaris fisik berkala.
+          </p>
+        </div>
+        <div className="page-actions flex items-center gap-3">
+          {can(user, "library.write") && (
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition"
+            >
+              + Mulai Stock Opname Baru
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="table-container bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3">Sesi / Judul</th>
+                <th className="px-6 py-3">Rak Target</th>
+                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3 text-center">Total Item</th>
+                <th className="px-6 py-3 text-center">Selisih</th>
+                <th className="px-6 py-3">Dibuat Oleh</th>
+                <th className="px-6 py-3">Tanggal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                    Memuat data stock opname...
+                  </td>
+                </tr>
+              ) : opnames.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                    Belum ada sesi stock opname tercatat.
+                  </td>
+                </tr>
+              ) : (
+                opnames.map((op) => (
+                  <tr key={op.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-4 font-medium text-slate-900">
+                      <div>{op.title}</div>
+                      {op.notes && <div className="text-xs text-slate-500">{op.notes}</div>}
+                    </td>
+                    <td className="px-6 py-4">{op.shelf_name || "Semua Rak"}</td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          op.status === "COMPLETED"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : op.status === "IN_PROGRESS"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-slate-100 text-slate-800"
+                        }`}
+                      >
+                        {op.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center font-semibold text-slate-900">
+                      {op.total_items}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          op.discrepancy_count > 0
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        {op.discrepancy_count}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-900">{op.created_by_name || "-"}</td>
+                    <td className="px-6 py-4 text-xs text-slate-500">
+                      {new Date(op.created_at).toLocaleString("id-ID")}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-black/30 flex justify-end">
+          <div className="school-drawer-layer w-full max-w-md bg-white h-full shadow-2xl flex flex-col p-6 overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900">Mulai Stock Opname Baru</h2>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="space-y-4 pt-4 flex-1">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Judul / Nama Sesi Audit *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Audit Semester Ganjil"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Rak Tertentu</label>
+                <select
+                  value={shelfId}
+                  onChange={(e) => setShelfId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Semua Rak (Seluruh Koleksi) --</option>
+                  {shelves.map((sh) => (
+                    <option key={sh.id} value={sh.id}>
+                      {sh.code} - {sh.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Catatan</label>
+                <textarea
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Catatan tambahan..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {busy ? "Menyimpan..." : "Simpan & Mulai"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LibraryInventarisHilangRusakPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [incidents, setIncidents] = useState<any[]>([]);
+  const [copies, setCopies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [copyId, setCopyId] = useState("");
+  const [type, setType] = useState<"LOST" | "DAMAGED">("LOST");
+  const [description, setDescription] = useState("");
+  const [resolution, setResolution] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: any[] }>("library/inventory/incidents");
+      setIncidents(res.data || []);
+      const cps = await api<{ data: any[] }>("library/copies");
+      setCopies(cps.data || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await send("library/inventory/incidents", {
+        copy_id: copyId,
+        type,
+        description,
+        resolution: resolution || undefined,
+      });
+      setCopyId("");
+      setDescription("");
+      setResolution("");
+      setDrawerOpen(false);
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="table-page space-y-6">
+      <div className="table-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="eyebrow text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Inventaris Perpustakaan
+          </p>
+          <h1 className="page-title text-2xl font-bold text-slate-900">Buku Hilang & Rusak</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Pencatatan dan pelaporan eksemplar buku yang hilang atau rusak.
+          </p>
+        </div>
+        <div className="page-actions flex items-center gap-3">
+          {can(user, "library.write") && (
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition"
+            >
+              + Catat Insiden Baru
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="table-container bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3">Buku & Barcode</th>
+                <th className="px-6 py-3">Jenis Insiden</th>
+                <th className="px-6 py-3">Keterangan</th>
+                <th className="px-6 py-3">Resolusi</th>
+                <th className="px-6 py-3">Dilapor Oleh</th>
+                <th className="px-6 py-3">Tanggal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    Memuat data insiden...
+                  </td>
+                </tr>
+              ) : incidents.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    Tidak ada insiden hilang/rusak tercatat.
+                  </td>
+                </tr>
+              ) : (
+                incidents.map((inc) => (
+                  <tr key={inc.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-900">{inc.book_title}</div>
+                      <div className="text-xs font-mono text-slate-500">{inc.barcode}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          inc.type === "LOST"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {inc.type === "LOST" ? "Hilang" : "Rusak"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-900">{inc.description}</td>
+                    <td className="px-6 py-4 text-slate-600">{inc.resolution || "-"}</td>
+                    <td className="px-6 py-4 text-slate-900">{inc.reported_by_name || "-"}</td>
+                    <td className="px-6 py-4 text-xs text-slate-500">
+                      {new Date(inc.reported_at).toLocaleString("id-ID")}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-black/30 flex justify-end">
+          <div className="school-drawer-layer w-full max-w-md bg-white h-full shadow-2xl flex flex-col p-6 overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900">Catat Insiden Buku Hilang/Rusak</h2>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="space-y-4 pt-4 flex-1">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Pilih Eksemplar Buku (Barcode) *
+                </label>
+                <select
+                  required
+                  value={copyId}
+                  onChange={(e) => setCopyId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Pilih Eksemplar --</option>
+                  {copies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.barcode} ({c.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Jenis Insiden *
+                </label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as "LOST" | "DAMAGED")}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="LOST">Hilang (Lost)</option>
+                  <option value="DAMAGED">Rusak (Damaged)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Keterangan / Kronologi *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Jelaskan kondisi atau kronologi kejadian..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Resolusi / Tindakan Lanjut
+                </label>
+                <input
+                  type="text"
+                  value={resolution}
+                  onChange={(e) => setResolution(e.target.value)}
+                  placeholder="Contoh: Diganti dengan buku baru / Dikenakan denda"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {busy ? "Menyimpan..." : "Simpan Insiden"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LibraryInventarisMutasiPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [mutations, setMutations] = useState<any[]>([]);
+  const [copies, setCopies] = useState<any[]>([]);
+  const [shelves, setShelves] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [copyId, setCopyId] = useState("");
+  const [toShelfId, setToShelfId] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: any[] }>("library/inventory/mutations");
+      setMutations(res.data || []);
+      const cps = await api<{ data: any[] }>("library/copies");
+      setCopies(cps.data || []);
+      const sh = await api<{ data: any[] }>("library/shelves");
+      setShelves(sh.data || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await send("library/inventory/mutations", {
+        copy_id: copyId,
+        to_shelf_id: toShelfId,
+        reason,
+      });
+      setCopyId("");
+      setToShelfId("");
+      setReason("");
+      setDrawerOpen(false);
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="table-page space-y-6">
+      <div className="table-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="eyebrow text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Inventaris Perpustakaan
+          </p>
+          <h1 className="page-title text-2xl font-bold text-slate-900">Mutasi Buku</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Kelola perpindahan lokasi / rak eksemplar buku secara sistematis.
+          </p>
+        </div>
+        <div className="page-actions flex items-center gap-3">
+          {can(user, "library.write") && (
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition"
+            >
+              + Mutasi Buku Baru
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="table-container bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3">Buku & Barcode</th>
+                <th className="px-6 py-3">Rak Asal</th>
+                <th className="px-6 py-3">Rak Tujuan</th>
+                <th className="px-6 py-3">Alasan Perpindahan</th>
+                <th className="px-6 py-3">Petugas</th>
+                <th className="px-6 py-3">Tanggal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    Memuat riwayat mutasi...
+                  </td>
+                </tr>
+              ) : mutations.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    Belum ada riwayat mutasi buku tercatat.
+                  </td>
+                </tr>
+              ) : (
+                mutations.map((m) => (
+                  <tr key={m.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-900">{m.book_title}</div>
+                      <div className="text-xs font-mono text-slate-500">{m.barcode}</div>
+                    </td>
+                    <td className="px-6 py-4">{m.from_shelf_name || "Tanpa Rak"}</td>
+                    <td className="px-6 py-4 font-medium text-indigo-600">
+                      {m.to_shelf_name || "-"}
+                    </td>
+                    <td className="px-6 py-4 text-slate-900">{m.reason}</td>
+                    <td className="px-6 py-4 text-slate-900">{m.performed_by_name || "-"}</td>
+                    <td className="px-6 py-4 text-xs text-slate-500">
+                      {new Date(m.performed_at).toLocaleString("id-ID")}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-black/30 flex justify-end">
+          <div className="school-drawer-layer w-full max-w-md bg-white h-full shadow-2xl flex flex-col p-6 overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900">Mutasi Rak Eksemplar Buku</h2>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="space-y-4 pt-4 flex-1">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Pilih Eksemplar Buku (Barcode) *
+                </label>
+                <select
+                  required
+                  value={copyId}
+                  onChange={(e) => setCopyId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Pilih Eksemplar --</option>
+                  {copies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.barcode} ({c.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Rak Tujuan *
+                </label>
+                <select
+                  required
+                  value={toShelfId}
+                  onChange={(e) => setToShelfId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Pilih Rak Tujuan --</option>
+                  {shelves.map((sh) => (
+                    <option key={sh.id} value={sh.id}>
+                      {sh.code} - {sh.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Alasan Perpindahan *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Contoh: Reorganisasi rak perpustakaan pusat"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {busy ? "Menyimpan..." : "Simpan Mutasi"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+export function LibraryDendaAktifPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [penalties, setPenalties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: any[] }>("library/penalties?status=UNPAID");
+      setPenalties(res.data || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const handleResolve = async (id: string, method: "WALLET" | "WAIVE") => {
+    if (!confirm(method === "WALLET" ? "Proses pembayaran denda dari saldo siswa?" : "Bebaskan (waive) denda ini?")) {
+      return;
+    }
+    setBusyId(id);
+    setError("");
+    try {
+      await send(`library/penalties/${id}/resolve`, { method });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="table-page space-y-6">
+      <div className="table-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="eyebrow text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Manajemen Denda
+          </p>
+          <h1 className="page-title text-2xl font-bold text-slate-900">Denda Aktif (Belum Lunas)</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Pantau dan selesaikan denda keterlambatan, kerusakan, atau kehilangan buku.
+          </p>
+        </div>
+        <div className="page-actions flex items-center gap-3">
+          <button
+            onClick={() => void load()}
+            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+          >
+            Muat Ulang
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="table-container bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3">Siswa (Peminjam)</th>
+                <th className="px-6 py-3">Buku & Barcode</th>
+                <th className="px-6 py-3">Tipe Denda</th>
+                <th className="px-6 py-3 text-center">Keterlambatan</th>
+                <th className="px-6 py-3 text-right">Jumlah Denda</th>
+                <th className="px-6 py-3 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    Memuat denda aktif...
+                  </td>
+                </tr>
+              ) : penalties.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    Tidak ada denda aktif saat ini.
+                  </td>
+                </tr>
+              ) : (
+                penalties.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-900">{p.student_name}</div>
+                      <div className="text-xs font-mono text-slate-500">NIS: {p.nis || "-"}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-900">{p.book_title}</div>
+                      <div className="text-xs font-mono text-slate-500">{p.barcode}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        {p.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center font-medium text-slate-900">
+                      {p.late_days > 0 ? `${p.late_days} hari` : "-"}
+                    </td>
+                    <td className="px-6 py-4 text-right font-bold text-slate-900">
+                      Rp {Number(p.amount).toLocaleString("id-ID")}
+                    </td>
+                    <td className="px-6 py-4 text-center space-x-2">
+                      {can(user, "library.write") && (
+                        <>
+                          <button
+                            onClick={() => void handleResolve(p.id, "WALLET")}
+                            disabled={busyId === p.id}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            Bayar (Saldo)
+                          </button>
+                          <button
+                            onClick={() => void handleResolve(p.id, "WAIVE")}
+                            disabled={busyId === p.id}
+                            className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50"
+                          >
+                            Bebaskan
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LibraryDendaRiwayatPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [penalties, setPenalties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<{ data: any[] }>("library/penalties");
+      setPenalties((res.data || []).filter((p: any) => p.status !== "UNPAID"));
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  return (
+    <div className="table-page space-y-6">
+      <div className="table-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="eyebrow text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Manajemen Denda
+          </p>
+          <h1 className="page-title text-2xl font-bold text-slate-900">Riwayat Pembayaran Denda</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Lacak riwayat pelunasan dan pembebasan denda perpustakaan.
+          </p>
+        </div>
+        <div className="page-actions flex items-center gap-3">
+          <button
+            onClick={() => void load()}
+            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+          >
+            Muat Ulang
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="table-container bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3">Siswa</th>
+                <th className="px-6 py-3">Buku</th>
+                <th className="px-6 py-3">Tipe</th>
+                <th className="px-6 py-3 text-right">Jumlah</th>
+                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3">Tanggal Selesai</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    Memuat riwayat denda...
+                  </td>
+                </tr>
+              ) : penalties.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    Belum ada riwayat pembayaran atau pembebasan denda.
+                  </td>
+                </tr>
+              ) : (
+                penalties.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-4 font-medium text-slate-900">{p.student_name}</td>
+                    <td className="px-6 py-4">{p.book_title}</td>
+                    <td className="px-6 py-4">{p.type}</td>
+                    <td className="px-6 py-4 text-right font-semibold text-slate-900">
+                      Rp {Number(p.amount).toLocaleString("id-ID")}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          p.status === "PAID"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-slate-100 text-slate-800"
+                        }`}
+                      >
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-slate-500">
+                      {p.resolved_at ? new Date(p.resolved_at).toLocaleString("id-ID") : "-"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+export function LibraryLaporanPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [activeTab, setActiveTab] = useState<"peminjaman" | "pengembalian" | "keterlambatan" | "terpopuler" | "inventaris" | "denda">("peminjaman");
+  const [reportData, setReportData] = useState<any[] | null>(null);
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadReport = async (tab: typeof activeTab) => {
+    setLoading(true);
+    setError("");
+    setReportData(null);
+    setSummaryData(null);
+    try {
+      if (tab === "inventaris") {
+        const res = await api<any>(`library/reports/inventaris`);
+        setSummaryData(res);
+      } else if (tab === "denda") {
+        const res = await api<any>(`library/reports/denda`);
+        setSummaryData(res);
+      } else {
+        const endpointMap = {
+          peminjaman: "library/reports/peminjaman",
+          pengembalian: "library/reports/pengembalian",
+          keterlambatan: "library/reports/keterlambatan",
+          terpopuler: "library/reports/buku-terpopuler",
+        };
+        const res = await api<{ data: any[] }>(endpointMap[tab]);
+        setReportData(res.data || []);
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadReport(activeTab);
+  }, [activeTab]);
+
+  return (
+    <div className="table-page space-y-6">
+      <div className="table-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="eyebrow text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Laporan Perpustakaan
+          </p>
+          <h1 className="page-title text-2xl font-bold text-slate-900">Pusat Laporan & Statistik</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Unduh dan tinjau laporan peminjaman, pengembalian, keterlambatan, buku terpopuler, inventaris, dan denda.
+          </p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+        {[
+          { key: "peminjaman", label: "Peminjaman" },
+          { key: "pengembalian", label: "Pengembalian" },
+          { key: "keterlambatan", label: "Keterlambatan" },
+          { key: "terpopuler", label: "Buku Terpopuler" },
+          { key: "inventaris", label: "Inventaris" },
+          { key: "denda", label: "Denda & Keuangan" },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key as any)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+              activeTab === tab.key
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="p-12 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
+          Memuat laporan...
+        </div>
+      ) : activeTab === "inventaris" && summaryData ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: "Total Eksemplar", val: summaryData.total_copies, color: "bg-blue-50 text-blue-800 border-blue-200" },
+            { label: "Tersedia", val: summaryData.available, color: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+            { label: "Dipinjam", val: summaryData.borrowed, color: "bg-amber-50 text-amber-800 border-amber-200" },
+            { label: "Reservasi", val: summaryData.reserved, color: "bg-purple-50 text-purple-800 border-purple-200" },
+            { label: "Hilang", val: summaryData.lost, color: "bg-red-50 text-red-800 border-red-200" },
+            { label: "Rusak", val: summaryData.damaged, color: "bg-rose-50 text-rose-800 border-rose-200" },
+            { label: "Pemeliharaan", val: summaryData.maintenance, color: "bg-slate-50 text-slate-800 border-slate-200" },
+          ].map((item, idx) => (
+            <div key={idx} className={`p-5 rounded-xl border ${item.color} shadow-sm`}>
+              <div className="text-sm font-medium opacity-80">{item.label}</div>
+              <div className="text-3xl font-bold mt-2">{item.val ?? 0}</div>
+            </div>
+          ))}
+        </div>
+      ) : activeTab === "denda" && summaryData ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: "Total Denda", val: `Rp ${Number(summaryData.total_fine || 0).toLocaleString("id-ID")}`, color: "bg-blue-50 text-blue-800 border-blue-200" },
+            { label: "Sudah Dibayar", val: `Rp ${Number(summaryData.paid || 0).toLocaleString("id-ID")}`, color: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+            { label: "Belum Lunas", val: `Rp ${Number(summaryData.outstanding || 0).toLocaleString("id-ID")}`, color: "bg-amber-50 text-amber-800 border-amber-200" },
+            { label: "Dibebaskan", val: `Rp ${Number(summaryData.waived || 0).toLocaleString("id-ID")}`, color: "bg-slate-50 text-slate-800 border-slate-200" },
+          ].map((item, idx) => (
+            <div key={idx} className={`p-5 rounded-xl border ${item.color} shadow-sm`}>
+              <div className="text-sm font-medium opacity-80">{item.label}</div>
+              <div className="text-2xl font-bold mt-2">{item.val}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="table-container bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-700 font-semibold border-b border-slate-200">
+                {activeTab === "peminjaman" && (
+                  <tr>
+                    <th className="px-6 py-3">Siswa</th>
+                    <th className="px-6 py-3">Buku & Barcode</th>
+                    <th className="px-6 py-3">Tanggal Pinjam</th>
+                    <th className="px-6 py-3">Jatuh Tempo</th>
+                    <th className="px-6 py-3">Status</th>
+                  </tr>
+                )}
+                {activeTab === "pengembalian" && (
+                  <tr>
+                    <th className="px-6 py-3">Siswa</th>
+                    <th className="px-6 py-3">Buku & Barcode</th>
+                    <th className="px-6 py-3">Tanggal Kembali</th>
+                    <th className="px-6 py-3">Kondisi</th>
+                  </tr>
+                )}
+                {activeTab === "keterlambatan" && (
+                  <tr>
+                    <th className="px-6 py-3">Siswa</th>
+                    <th className="px-6 py-3">Buku</th>
+                    <th className="px-6 py-3 text-center">Jatuh Tempo</th>
+                    <th className="px-6 py-3 text-center">Terlambat</th>
+                    <th className="px-6 py-3 text-right">Denda</th>
+                  </tr>
+                )}
+                {activeTab === "terpopuler" && (
+                  <tr>
+                    <th className="px-6 py-3">Judul Buku</th>
+                    <th className="px-6 py-3">Penulis</th>
+                    <th className="px-6 py-3">ISBN</th>
+                    <th className="px-6 py-3 text-center">Total Peminjaman</th>
+                  </tr>
+                )}
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {!reportData || reportData.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                      Tidak ada data laporan untuk kategori ini.
+                    </td>
+                  </tr>
+                ) : (
+                  reportData.map((row, i) => (
+                    <tr key={row.id || i} className="hover:bg-slate-50 transition">
+                      {activeTab === "peminjaman" && (
+                        <>
+                          <td className="px-6 py-4 font-medium text-slate-900">{row.student_name}</td>
+                          <td className="px-6 py-4">
+                            <div>{row.book_title}</div>
+                            <div className="text-xs font-mono text-slate-500">{row.barcode}</div>
+                          </td>
+                          <td className="px-6 py-4 text-xs">{new Date(row.borrowed_at).toLocaleDateString("id-ID")}</td>
+                          <td className="px-6 py-4 text-xs">{new Date(row.due_date).toLocaleDateString("id-ID")}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                              {row.status}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {activeTab === "pengembalian" && (
+                        <>
+                          <td className="px-6 py-4 font-medium text-slate-900">{row.student_name}</td>
+                          <td className="px-6 py-4">
+                            <div>{row.book_title}</div>
+                            <div className="text-xs font-mono text-slate-500">{row.barcode}</div>
+                          </td>
+                          <td className="px-6 py-4 text-xs">{new Date(row.returned_at).toLocaleString("id-ID")}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                              {row.condition || "GOOD"}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {activeTab === "keterlambatan" && (
+                        <>
+                          <td className="px-6 py-4 font-medium text-slate-900">{row.student_name}</td>
+                          <td className="px-6 py-4">{row.book_title}</td>
+                          <td className="px-6 py-4 text-center text-xs">{new Date(row.due_date).toLocaleDateString("id-ID")}</td>
+                          <td className="px-6 py-4 text-center font-bold text-red-600">{row.late_days} hari</td>
+                          <td className="px-6 py-4 text-right font-bold text-slate-900">
+                            Rp {Number(row.amount).toLocaleString("id-ID")}
+                          </td>
+                        </>
+                      )}
+                      {activeTab === "terpopuler" && (
+                        <>
+                          <td className="px-6 py-4 font-medium text-slate-900">{row.title}</td>
+                          <td className="px-6 py-4">{row.author || "-"}</td>
+                          <td className="px-6 py-4 text-xs font-mono">{row.isbn || "-"}</td>
+                          <td className="px-6 py-4 text-center font-bold text-emerald-600">{row.borrowing_count}x</td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LibraryPengaturanPage({
+  user,
+  catalog,
+}: {
+  user: Actor;
+  catalog: Catalog;
+}) {
+  const [settings, setSettings] = useState<any>({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<any>("library/settings");
+      setSettings(res || {});
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const handleChange = (field: string, val: any) => {
+    setSettings((prev: any) => ({ ...prev, [field]: val }));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await send("library/settings", settings, "PUT");
+      setSettings(res);
+      setSuccess("Pengaturan perpustakaan berhasil disimpan!");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="table-page space-y-6">
+      <div className="table-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="eyebrow text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Konfigurasi Sistem
+          </p>
+          <h1 className="page-title text-2xl font-bold text-slate-900">Pengaturan Perpustakaan</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Atur aturan peminjaman, masa berlaku, denda, dan informasi identitas perpustakaan.
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="p-12 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
+          Memuat pengaturan...
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="space-y-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Maksimal Buku Dipinjam</label>
+              <input
+                type="number"
+                value={settings.max_books ?? 3}
+                onChange={(e) => handleChange("max_books", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Durasi Peminjaman (Hari)</label>
+              <input
+                type="number"
+                value={settings.loan_duration_days ?? 7}
+                onChange={(e) => handleChange("loan_duration_days", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Maksimal Perpanjangan</label>
+              <input
+                type="number"
+                value={settings.max_renewals ?? 2}
+                onChange={(e) => handleChange("max_renewals", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Durasi Perpanjangan (Hari)</label>
+              <input
+                type="number"
+                value={settings.renewal_duration_days ?? 7}
+                onChange={(e) => handleChange("renewal_duration_days", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Maksimal Reservasi</label>
+              <input
+                type="number"
+                value={settings.max_reservations ?? 2}
+                onChange={(e) => handleChange("max_reservations", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Masa Berlaku Reservasi (Hari)</label>
+              <input
+                type="number"
+                value={settings.reservation_expiry_days ?? 3}
+                onChange={(e) => handleChange("reservation_expiry_days", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Tarif Denda Per Hari (Rp)</label>
+              <input
+                type="number"
+                value={settings.fine_rate_per_day ?? 1000}
+                onChange={(e) => handleChange("fine_rate_per_day", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Maksimal Denda (Rp)</label>
+              <input
+                type="number"
+                value={settings.max_fine ?? 50000}
+                onChange={(e) => handleChange("max_fine", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Denda Buku Hilang (Rp)</label>
+              <input
+                type="number"
+                value={settings.lost_book_fine ?? 100000}
+                onChange={(e) => handleChange("lost_book_fine", Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Informasi Perpustakaan</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nama Perpustakaan</label>
+                <input
+                  type="text"
+                  value={settings.library_name ?? ""}
+                  onChange={(e) => handleChange("library_name", e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Kode Perpustakaan</label>
+                <input
+                  type="text"
+                  value={settings.library_code ?? ""}
+                  onChange={(e) => handleChange("library_code", e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Alamat</label>
+                <textarea
+                  value={settings.address ?? ""}
+                  onChange={(e) => handleChange("address", e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Kontak / Telepon</label>
+                <input
+                  type="text"
+                  value={settings.contact ?? ""}
+                  onChange={(e) => handleChange("contact", e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Jam Operasional</label>
+                <input
+                  type="text"
+                  value={settings.operating_hours ?? ""}
+                  onChange={(e) => handleChange("operating_hours", e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {can(user, "library.write") && (
+            <div className="flex justify-end pt-4">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-6 py-2 bg-emerald-600 text-white font-medium text-sm rounded-lg hover:bg-emerald-700 transition disabled:opacity-50 shadow-sm"
+              >
+                {saving ? "Menyimpan..." : "Simpan Pengaturan"}
+              </button>
+            </div>
+          )}
+        </form>
+      )}
+    </div>
+  );
+}
+

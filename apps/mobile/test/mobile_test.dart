@@ -5,11 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:langkahsiswa_mobile/api.dart';
 import 'package:langkahsiswa_mobile/main.dart';
+import 'package:langkahsiswa_mobile/theme/app_theme.dart';
+import 'package:langkahsiswa_mobile/screens/login_screen.dart';
 import 'package:langkahsiswa_mobile/teaching_pages.dart';
 import 'package:langkahsiswa_mobile/finance_pages.dart';
 
 Widget shell(Widget child) =>
-    MaterialApp(theme: schoolTheme(Brightness.light), home: child);
+    MaterialApp(theme: lightTheme, home: child);
 const assignment = {
   'id': 'subject',
   'class_id': 'class',
@@ -29,16 +31,16 @@ void main() {
     'Themes keep blue brand with white light and near black dark surfaces',
     () {
       expect(
-        schoolTheme(Brightness.light).scaffoldBackgroundColor,
+        lightTheme.scaffoldBackgroundColor,
         Colors.white,
       );
       expect(
-        schoolTheme(Brightness.light).colorScheme.primary,
+        lightTheme.colorScheme.primary,
         const Color(0xff004aad),
       );
       expect(
-        schoolTheme(Brightness.dark).scaffoldBackgroundColor,
-        const Color(0xff080a0e),
+        darkTheme.scaffoldBackgroundColor,
+        const Color(0xff0d121a),
       );
     },
   );
@@ -53,13 +55,13 @@ void main() {
       }),
     );
     await tester.pumpWidget(
-      shell(LoginPage(api: api, onLogin: () {}, toggleTheme: () {})),
+      shell(LoginScreen(api: api, onLogin: () {}, toggleTheme: () {})),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Masuk'));
-    await tester.tap(find.text('Masuk'));
+    await tester.ensureVisible(find.text('Masuk ke LangkahSiswa →'));
+    await tester.tap(find.text('Masuk ke LangkahSiswa →'));
     await tester.pumpAndSettle();
-    expect(find.text('Wajib diisi'), findsNWidgets(2));
+    expect(find.text('Wajib diisi'), findsNWidgets(2)); // email, password (tenant has default)
     expect(loginRequests, 0);
   });
   testWidgets(

@@ -31,14 +31,31 @@ interface CbtSession {
   correct_count?: number;
 }
 
+interface CbtHistorySession {
+  id: string;
+  grade_level: string;
+  subject: string;
+  total_questions: number;
+  duration_minutes: number;
+  started_at: string;
+  expires_at: string;
+  status: "IN_PROGRESS" | "COMPLETED";
+  score?: number;
+  correct_count?: number;
+}
+
 interface OptionsData {
   levels: { id: string; label: string }[];
   subjectMap: Record<string, string[]>;
 }
 
+type ViewMode = "history" | "setup" | "active" | "result";
+
 export function CbtPage() {
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(true);
+  const [history, setHistory] = useState<CbtHistorySession[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
   // Setup form states
   const [selectedLevel, setSelectedLevel] = useState("SMA");
@@ -53,6 +70,8 @@ export function CbtPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [viewMode, setViewMode] = useState<ViewMode>("history");
 
   // Fetch setup options on load
   useEffect(() => {
@@ -69,6 +88,14 @@ export function CbtPage() {
       })
       .catch((err) => setErrorMsg("Gagal memuat daftar soal: " + err.message))
       .finally(() => setLoadingOptions(false));
+  }, []);
+
+  // Fetch history on load
+  useEffect(() => {
+    api<{ sessions: CbtHistorySession[] }>("cbt/sessions")
+      .then((res) => setHistory(res.sessions || []))
+      .catch((err) => console.error("Gagal memuat history:", err))
+      .finally(() => setLoadingHistory(false));
   }, []);
 
   // Update subject dropdown when level changes
@@ -136,10 +163,36 @@ export function CbtPage() {
       const now = new Date().getTime();
       const secs = Math.max(0, Math.floor((expiry - now) / 1000));
       setRemainingSeconds(secs);
+
+      setViewMode("active");
     } catch (err: any) {
       setErrorMsg(err.message || "Gagal memulai latihan CBT");
     } finally {
       setIsStarting(false);
+    }
+  };
+
+  // Resume existing session
+  const handleResumeSession = async (sessionId: string) => {
+    setErrorMsg("");
+    try {
+      const res = await api<{ session: CbtSession; questions: Question[] }>(
+        `cbt/sessions/${sessionId}`,
+      );
+
+      setSession(res.session);
+      setQuestions(res.questions);
+      setCurrentIndex(0);
+
+      // Compute remaining time from expires_at
+      const expiry = new Date(res.session.expires_at).getTime();
+      const now = new Date().getTime();
+      const secs = Math.max(0, Math.floor((expiry - now) / 1000));
+      setRemainingSeconds(secs);
+
+      setViewMode(res.session.status === "COMPLETED" ? "result" : "active");
+    } catch (err: any) {
+      setErrorMsg(err.message || "Gagal memuat sesi CBT");
     }
   };
 
@@ -196,11 +249,31 @@ export function CbtPage() {
       );
       setSession(res.session);
       setQuestions(res.questions);
+      setViewMode("result");
     } catch (err: any) {
       setErrorMsg("Gagal menyelesaikan ujian: " + err.message);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Back to history view
+  const handleBackToHistory = () => {
+    setSession(null);
+    setQuestions([]);
+    setCurrentIndex(0);
+    setRemainingSeconds(null);
+    setErrorMsg("");
+    setViewMode("history");
+    // Refresh history
+    api<{ sessions: CbtHistorySession[] }>("cbt/sessions")
+      .then((res) => setHistory(res.sessions || []))
+      .catch((err) => console.error("Gagal memuat history:", err));
+  };
+
+  // Go to setup form for new simulation
+  const handleNewSimulation = () => {
+    setViewMode("setup");
   };
 
   // Helper format time
@@ -214,19 +287,144 @@ export function CbtPage() {
       : `${pad(mins)}:${pad(secs)}`;
   };
 
-  // Stats calculation
+  // Format date for history
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // Status badge
+  const getStatusBadge = (status: string, score?: number) => {
+    if (status === "COMPLETED") {
+      return (
+        <span
+          className={`cbt-status-badge ${score && score >= 70 ? "passed" : "failed"}`}
+        >
+          {score !== undefined
+            ? `${score} ${score >= 70 ? "✓ Lulus" : "✗ Perlu Latihan"}`
+            : "Selesai"}
+        </span>
+      );
+    }
+    return <span className="cbt-status-badge in-progress">Berlangsung</span>;
+  };
+
+  // Stats for active session (defined at component level so footer can access)
   const totalQuestions = questions.length;
   const answeredCount = questions.filter((q) => q.selected_option_id).length;
   const flaggedCount = questions.filter((q) => q.is_flagged).length;
   const unansweredCount = totalQuestions - answeredCount;
   const currentQ = questions[currentIndex];
 
-  // --- VIEW 1: SETUP FORM (if no active session) ---
-  if (!session) {
+  // --- VIEW 1: HISTORY TABLE ---
+  if (viewMode === "history") {
+    return (
+      <div className="cbt-history-container">
+        <div className="cbt-history-header">
+          <div>
+            <span className="cbt-badge">Cimulasi CBT</span>
+            <h2>Riwayat Simulasi</h2>
+            <p>
+              Klik sesi untuk melanjutkan atau lihat hasil. Klik "Start
+              Simulasi" untuk memulai baru.
+            </p>
+          </div>
+          <button
+            onClick={handleNewSimulation}
+            className="cbt-btn cbt-btn-primary cbt-btn-lg"
+          >
+            + Start Simulasi
+          </button>
+        </div>
+
+        {errorMsg && (
+          <div className="cbt-alert cbt-alert-error">{errorMsg}</div>
+        )}
+
+        {loadingHistory ? (
+          <div className="cbt-loading">Memuat riwayat simulasi…</div>
+        ) : history.length === 0 ? (
+          <div className="cbt-empty-state">
+            <div className="cbt-empty-icon">📋</div>
+            <h3>Belum Ada Riwayat Simulasi</h3>
+            <p>
+              Mulai simulasi CBT pertama Anda untuk melatih kemampuan menjawab
+              soal.
+            </p>
+            <button
+              onClick={handleNewSimulation}
+              className="cbt-btn cbt-btn-primary"
+            >
+              Mulai Simulasi Pertama
+            </button>
+          </div>
+        ) : (
+          <div className="cbt-history-table-wrapper">
+            <table className="cbt-history-table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Tingkatan</th>
+                  <th>Mata Pelajaran</th>
+                  <th>Jumlah Soal</th>
+                  <th>Durasi</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr
+                    key={h.id}
+                    onClick={() => handleResumeSession(h.id)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <td>{formatDate(h.started_at)}</td>
+                    <td>{h.grade_level}</td>
+                    <td>{h.subject}</td>
+                    <td>{h.total_questions} Soal</td>
+                    <td>{h.duration_minutes} Menit</td>
+                    <td>{getStatusBadge(h.status, h.score)}</td>
+                    <td>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleResumeSession(h.id);
+                        }}
+                        className="cbt-btn cbt-btn-sm cbt-btn-secondary"
+                      >
+                        {h.status === "COMPLETED" ? "Lihat Hasil" : "Lanjutkan"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- VIEW 2: SETUP FORM ---
+  if (viewMode === "setup") {
     return (
       <div className="cbt-setup-container">
         <div className="cbt-card cbt-setup-card">
           <div className="cbt-setup-header">
+            <button
+              onClick={() => setViewMode("history")}
+              className="cbt-back-btn"
+              type="button"
+            >
+              ← Kembali
+            </button>
             <span className="cbt-badge">Cimulasi CBT</span>
             <h2>Latihan Soal & Simulasi Ujian</h2>
             <p>
@@ -301,35 +499,44 @@ export function CbtPage() {
     );
   }
 
-  // --- VIEW 2: COMPLETED RESULT SCREEN ---
-  if (session.status === "COMPLETED") {
+  // --- VIEW 3: COMPLETED RESULT SCREEN ---
+  if (viewMode === "result" || (session && session.status === "COMPLETED")) {
     return (
       <div className="cbt-result-container">
         <div className="cbt-card cbt-result-card">
           <div className="cbt-result-header">
+            <button
+              onClick={handleBackToHistory}
+              className="cbt-back-btn"
+              type="button"
+            >
+              ← Kembali ke Riwayat
+            </button>
             <h2>Hasil Simulasi CBT</h2>
             <p>
-              {session.grade_level} - {session.subject}
+              {session?.grade_level} - {session?.subject}
             </p>
           </div>
 
           <div className="cbt-score-banner">
             <div className="cbt-score-circle">
-              <span className="cbt-score-val">{session.score}</span>
+              <span className="cbt-score-val">{session?.score}</span>
               <span className="cbt-score-label">Nilai Akhir</span>
             </div>
             <div className="cbt-score-details">
               <div>
-                <strong>Benar:</strong> {session.correct_count} /{" "}
-                {session.total_questions} Soal
+                <strong>Benar:</strong> {session?.correct_count} /{" "}
+                {session?.total_questions ?? 0} Soal
               </div>
               <div>
                 <strong>Salah:</strong>{" "}
-                {session.total_questions - (session.correct_count || 0)} Soal
+                {(session?.total_questions ?? 0) -
+                  (session?.correct_count || 0)}{" "}
+                Soal
               </div>
               <div>
                 <strong>Status:</strong>{" "}
-                {session.score && session.score >= 70
+                {session?.score && session?.score >= 70
                   ? "LULUS / SANGAT BAIK"
                   : "PERLU LATIHAN LAGI"}
               </div>
@@ -387,11 +594,14 @@ export function CbtPage() {
 
           <div className="cbt-result-actions">
             <button
-              onClick={() => {
-                setSession(null);
-                setQuestions([]);
-              }}
+              onClick={handleBackToHistory}
               className="cbt-btn cbt-btn-primary"
+            >
+              Kembali ke Riwayat
+            </button>
+            <button
+              onClick={handleNewSimulation}
+              className="cbt-btn cbt-btn-secondary"
             >
               Coba Ujian Baru
             </button>
@@ -401,17 +611,17 @@ export function CbtPage() {
     );
   }
 
-  // --- VIEW 3: ACTIVE 4-SECTION CBT WORKSPACE ---
+  // --- VIEW 4: ACTIVE 4-SECTION CBT WORKSPACE ---
   return (
     <div className="cbt-layout">
       {/* 1. HEADER: Metadata soal, sesi, waktu sisa */}
       <header className="cbt-header">
         <div className="cbt-header-meta">
           <span className="cbt-subject-tag">
-            {session.grade_level} · {session.subject}
+            {session?.grade_level} · {session?.subject}
           </span>
           <span className="cbt-session-info">
-            Sesi: #{session.id.substring(0, 8)}
+            Sesi: #{session?.id.substring(0, 8)}
           </span>
         </div>
         <div className="cbt-header-timer">

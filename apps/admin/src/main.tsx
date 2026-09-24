@@ -22,14 +22,37 @@ import {
   financeAdmin,
 } from "./pages/finance";
 import { PortalPage } from "./pages/communications";
-import { AdmissionsPage, FilesPage } from "./pages/admissions-files";
+import { AdmissionsPage } from "./pages/admissions";
 import { PublicAdmissions } from "./pages/ppdb-public";
+import {
+  PpdbFoundationPage,
+  ppdbFoundationNavigation,
+} from "./pages/ppdb-foundation";
+import { PpdbDashboardPage, PpdbReportsPage } from "./pages/ppdb-reports";
 import { WebsiteBuilderPage } from "./pages/website-builder";
 import {
   BoardingPage,
   DomainsPage,
   LibraryPage,
   SecurityPage,
+  LibraryDashboardPage,
+  LibraryKoleksiBukuPage,
+  LibraryKoleksiKategoriPage,
+  LibraryKoleksiPenulisPage,
+  LibraryKoleksiPenerbitPage,
+  LibraryKoleksiRakPage,
+  LibrarySirkulasiPeminjamanPage,
+  LibrarySirkulasiPengembalianPage,
+  LibrarySirkulasiPerpanjanganPage,
+  LibrarySirkulasiReservasiPage,
+  LibraryInventarisStokPage,
+  LibraryInventarisOpnamePage,
+  LibraryInventarisHilangRusakPage,
+  LibraryInventarisMutasiPage,
+  LibraryDendaAktifPage,
+  LibraryDendaRiwayatPage,
+  LibraryLaporanPage,
+  LibraryPengaturanPage,
 } from "./pages/operations";
 import { DashboardPage, SitesPage } from "./pages/dashboard";
 import { FamilyPage } from "./pages/family";
@@ -85,6 +108,87 @@ const boardingNavigation = [
   },
 ] as const;
 
+const libraryNavigation = [
+  { key: "library-dashboard", section: "dashboard", title: "Dashboard" },
+  {
+    key: "library-koleksi-buku",
+    section: "koleksi",
+    title: "Buku",
+  },
+  {
+    key: "library-koleksi-kategori",
+    section: "koleksi",
+    title: "Kategori",
+  },
+  {
+    key: "library-koleksi-penulis",
+    section: "koleksi",
+    title: "Penulis",
+  },
+  {
+    key: "library-koleksi-penerbit",
+    section: "koleksi",
+    title: "Penerbit",
+  },
+  {
+    key: "library-koleksi-rak",
+    section: "koleksi",
+    title: "Rak",
+  },
+  {
+    key: "library-sirkulasi-peminjaman",
+    section: "sirkulasi",
+    title: "Peminjaman",
+  },
+  {
+    key: "library-sirkulasi-pengembalian",
+    section: "sirkulasi",
+    title: "Pengembalian",
+  },
+  {
+    key: "library-sirkulasi-perpanjangan",
+    section: "sirkulasi",
+    title: "Perpanjangan",
+  },
+  {
+    key: "library-sirkulasi-reservasi",
+    section: "sirkulasi",
+    title: "Reservasi",
+  },
+  {
+    key: "library-inventaris-stok",
+    section: "inventaris",
+    title: "Stok Buku",
+  },
+  {
+    key: "library-inventaris-opname",
+    section: "inventaris",
+    title: "Stock Opname",
+  },
+  {
+    key: "library-inventaris-hilang-rusak",
+    section: "inventaris",
+    title: "Buku Hilang & Rusak",
+  },
+  {
+    key: "library-inventaris-mutasi",
+    section: "inventaris",
+    title: "Mutasi Buku",
+  },
+  {
+    key: "library-denda-aktif",
+    section: "denda",
+    title: "Denda Aktif",
+  },
+  {
+    key: "library-denda-riwayat",
+    section: "denda",
+    title: "Riwayat Pembayaran",
+  },
+  { key: "library-laporan", section: "laporan", title: "Laporan" },
+  { key: "library-pengaturan", section: "pengaturan", title: "Pengaturan" },
+] as const;
+
 const groupedNavigation: Record<string, string[]> = {
   Guru: ["grades", "assessments", "attendance"],
   Administrasi: [
@@ -103,7 +207,7 @@ const groupedNavigation: Record<string, string[]> = {
     "admissions",
   ],
   Website: ["website", "domains"],
-  PPDB: ["ppdb"],
+  PPDB: ppdbFoundationNavigation.map(([key]) => key),
   Pengaturan: ["security", "users", "school-team", "files"],
   Keuangan: ["billing", "wallet", "pos"],
   "Boarding School": boardingNavigation.map(({ key }) => key),
@@ -115,6 +219,7 @@ const groupedNavigation: Record<string, string[]> = {
     "grade-levels",
     "classrooms",
   ],
+  Perpustakaan: libraryNavigation.map(({ key }) => key),
 };
 const operationalNavigationGroups = new Set([
   "Yayasan",
@@ -123,15 +228,22 @@ const operationalNavigationGroups = new Set([
   "Pengaturan",
   "Keuangan",
   "Website",
+  "Perpustakaan",
 ]);
 const unmarkedNavigationGroups = new Set([
   "Yayasan",
   "Guru",
   "Administrasi",
   "Pengaturan",
+  "PPDB",
+  "Perpustakaan",
 ]);
 const unmarkedNavigationKeys = new Set(["dashboard", "portal", "cbt"]);
-const openAllNavigationKeys = new Set(["dashboard", "portal", "cbt", "ppdb"]);
+const openAllNavigationKeys = new Set([
+  "dashboard",
+  "portal",
+  "cbt",
+]);
 
 function initiallyOpenGroups() {
   const route = location.hash.slice(1);
@@ -386,13 +498,15 @@ function Workspace({
       group: "Administrasi",
       permission: "admission.read",
     });
-  if (!user.roles.includes("STUDENT"))
-    links.push({
-      key: "ppdb",
-      title: "PPDB",
-      group: "PPDB",
-      permission: "site.read",
-    });
+  if (can(user, "admission.read"))
+    links.push(
+      ...ppdbFoundationNavigation.map(([key, title]) => ({
+        key,
+        title,
+        group: "PPDB",
+        permission: "admission.read",
+      })),
+    );
   if (can(user, "file.read"))
     links.push({
       key: "files",
@@ -424,12 +538,14 @@ function Workspace({
       })),
     );
   if (can(user, "library.read"))
-    links.push({
-      key: "library",
-      title: "Perpustakaan",
-      group: "Operasional",
-      permission: "library.read",
-    });
+    links.push(
+      ...libraryNavigation.map(({ key, title }) => ({
+        key,
+        title,
+        group: "Perpustakaan",
+        permission: "library.read",
+      })),
+    );
   if (can(user, "audit.read"))
     links.push({
       key: "security",
@@ -491,7 +607,8 @@ function Workspace({
       link.group = "Keuangan";
     else if (groupedNavigation["Boarding School"].includes(link.key))
       link.group = "Boarding School";
-    else if (link.key === "library") link.group = "Operasional";
+    else if (groupedNavigation.Perpustakaan.includes(link.key))
+      link.group = "Perpustakaan";
     else link.group = "Publikasi";
   }
   if (user.account_level !== "OPERATIONAL")
@@ -505,6 +622,7 @@ function Workspace({
     "Guru",
     "Keuangan",
     "Boarding School",
+    "Perpustakaan",
     "Operasional",
     "PPDB",
     "Publikasi",
@@ -822,10 +940,12 @@ function Workspace({
             <PortalPage />
           ) : route === "admissions" ? (
             <AdmissionsPage user={user} catalog={catalog} />
-          ) : route === "ppdb" ? (
-            <PublicAdmissions />
-          ) : route === "files" ? (
-            <FilesPage user={user} catalog={catalog} />
+          ) : route === "ppdb-dashboard" ? (
+            <PpdbDashboardPage />
+          ) : route === "ppdb-laporan" ? (
+            <PpdbReportsPage />
+          ) : ppdbFoundationNavigation.some(([key]) => key === route) ? (
+            <PpdbFoundationPage route={route} />
           ) : route === "website" ? (
             <WebsiteBuilderPage user={user} catalog={catalog} />
           ) : route === "domains" ? (
@@ -837,8 +957,42 @@ function Workspace({
               section={activeBoardingSection.section}
               title={activeBoardingSection.title}
             />
-          ) : route === "library" ? (
-            <LibraryPage user={user} catalog={catalog} />
+          ) : route === "library-dashboard" ? (
+            <LibraryDashboardPage user={user} catalog={catalog} />
+          ) : route === "library-koleksi-buku" ? (
+            <LibraryKoleksiBukuPage user={user} catalog={catalog} />
+          ) : route === "library-koleksi-kategori" ? (
+            <LibraryKoleksiKategoriPage user={user} catalog={catalog} />
+          ) : route === "library-koleksi-penulis" ? (
+            <LibraryKoleksiPenulisPage user={user} catalog={catalog} />
+          ) : route === "library-koleksi-penerbit" ? (
+            <LibraryKoleksiPenerbitPage user={user} catalog={catalog} />
+          ) : route === "library-koleksi-rak" ? (
+            <LibraryKoleksiRakPage user={user} catalog={catalog} />
+          ) : route === "library-sirkulasi-peminjaman" ? (
+            <LibrarySirkulasiPeminjamanPage user={user} catalog={catalog} />
+          ) : route === "library-sirkulasi-pengembalian" ? (
+            <LibrarySirkulasiPengembalianPage user={user} catalog={catalog} />
+          ) : route === "library-sirkulasi-perpanjangan" ? (
+            <LibrarySirkulasiPerpanjanganPage user={user} catalog={catalog} />
+          ) : route === "library-sirkulasi-reservasi" ? (
+            <LibrarySirkulasiReservasiPage user={user} catalog={catalog} />
+          ) : route === "library-inventaris-stok" ? (
+            <LibraryInventarisStokPage user={user} catalog={catalog} />
+          ) : route === "library-inventaris-opname" ? (
+            <LibraryInventarisOpnamePage user={user} catalog={catalog} />
+          ) : route === "library-inventaris-hilang-rusak" ? (
+            <LibraryInventarisHilangRusakPage user={user} catalog={catalog} />
+          ) : route === "library-inventaris-mutasi" ? (
+            <LibraryInventarisMutasiPage user={user} catalog={catalog} />
+          ) : route === "library-denda-aktif" ? (
+            <LibraryDendaAktifPage user={user} catalog={catalog} />
+          ) : route === "library-denda-riwayat" ? (
+            <LibraryDendaRiwayatPage user={user} catalog={catalog} />
+          ) : route === "library-laporan" ? (
+            <LibraryLaporanPage user={user} catalog={catalog} />
+          ) : route === "library-pengaturan" ? (
+            <LibraryPengaturanPage user={user} catalog={catalog} />
           ) : route === "security" ? (
             <SecurityPage user={user} />
           ) : route === "cbt" || route === "cimulasi-cbt" ? (

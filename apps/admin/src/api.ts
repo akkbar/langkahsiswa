@@ -1,5 +1,5 @@
 import type { Actor, Entity, Page } from "../../../packages/shared-types/src";
-let token = "";
+export let token = "";
 export function setToken(value: string) {
   token = value;
 }

@@ -264,4 +264,34 @@ export class CbtService {
       questions,
     };
   }
+
+  async listSessions(req: Request) {
+    const userId = await this.getUserId(req);
+    const guestId = (req as any).cookies?.cbt_guest_id || null;
+
+    let whereClause = "";
+    const params: any[] = [];
+
+    if (userId) {
+      whereClause = "WHERE user_id = $1";
+      params.push(userId);
+    } else if (guestId) {
+      whereClause = "WHERE guest_session_id = $1";
+      params.push(guestId);
+    } else {
+      return { sessions: [] };
+    }
+
+    const result = await this.db.query(
+      `SELECT id, grade_level, subject, total_questions, duration_minutes, 
+              started_at, expires_at, status, score, correct_count
+       FROM cbt_sessions
+       ${whereClause}
+       ORDER BY started_at DESC
+       LIMIT 50`,
+      params,
+    );
+
+    return { sessions: result.rows };
+  }
 }
